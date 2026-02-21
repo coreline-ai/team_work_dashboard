@@ -1,9 +1,41 @@
+"use client"
+
 import * as React from "react"
-import { cn } from "@/lib/utils"
-import { LayoutDashboard, ListTodo, Settings, Users, FolderKanban } from "lucide-react"
 import Link from "next/link"
+import { useSession } from "next-auth/react"
+import { usePathname } from "next/navigation"
+import { cn } from "@/lib/utils"
+import { adminNavigation, primaryNavigation, secondaryNavigation, type NavItem } from "@/config/navigation"
 
 export function Sidebar({ className }: { className?: string }) {
+    const pathname = usePathname()
+    const { data: session } = useSession()
+
+    const isAuthenticated = Boolean(session?.user)
+    const userRole = session?.user?.role
+
+    const isActive = (item: NavItem) => {
+        if (item.href === "/") return pathname === "/"
+        return pathname === item.href || pathname.startsWith(`${item.href}/`)
+    }
+
+    const linkClassName = (item: NavItem) => cn(
+        "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+        isActive(item)
+            ? "bg-white border border-slate-200 text-slate-900 shadow-sm"
+            : "text-slate-600 hover:bg-slate-200/50 hover:text-slate-900"
+    )
+
+    const hasAccess = (item: NavItem) => {
+        if (item.requiresAuth && !isAuthenticated) return false
+        if (item.requiresRole && item.requiresRole !== userRole) return false
+        return true
+    }
+
+    const visiblePrimary = primaryNavigation.filter(hasAccess)
+    const visibleSecondary = secondaryNavigation.filter(hasAccess)
+    const visibleAdmin = adminNavigation.filter(hasAccess)
+
     return (
         <aside className={cn("flex flex-col bg-slate-50 border-r border-slate-200 h-full", className)}>
             <div className="flex h-16 items-center px-6 border-b border-slate-200">
@@ -13,28 +45,40 @@ export function Sidebar({ className }: { className?: string }) {
                 </Link>
             </div>
             <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-                <Link href="/" className="flex items-center gap-3 rounded-md bg-white border border-slate-200 px-3 py-2 text-sm font-medium text-slate-900 shadow-sm">
-                    <LayoutDashboard className="h-4 w-4 text-blue-600" />
-                    Dashboard
-                </Link>
-                <Link href="/tasks" className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 transition-colors">
-                    <ListTodo className="h-4 w-4" />
-                    Tasks
-                </Link>
-                <Link href="#" className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 transition-colors">
-                    <FolderKanban className="h-4 w-4" />
-                    Projects
-                </Link>
-                <Link href="#" className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 transition-colors">
-                    <Users className="h-4 w-4" />
-                    Team Members
-                </Link>
+                {visiblePrimary.map((item) => {
+                    const Icon = item.icon
+                    return (
+                        <Link key={item.href} href={item.href} className={linkClassName(item)}>
+                            <Icon className={cn("h-4 w-4", isActive(item) ? "text-blue-600" : "text-slate-500")} />
+                            {item.label}
+                        </Link>
+                    )
+                })}
             </nav>
             <div className="p-4 border-t border-slate-200">
-                <Link href="#" className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/50 hover:text-slate-900 transition-colors">
-                    <Settings className="h-4 w-4" />
-                    Settings
-                </Link>
+                {visibleSecondary.map((item) => {
+                    const Icon = item.icon
+                    return (
+                        <Link key={item.href} href={item.href} className={linkClassName(item)}>
+                            <Icon className={cn("h-4 w-4", isActive(item) ? "text-blue-600" : "text-slate-500")} />
+                            {item.label}
+                        </Link>
+                    )
+                })}
+                {visibleAdmin.length > 0 ? (
+                    <div className="mt-3 pt-3 border-t border-slate-200 space-y-1">
+                        <p className="px-3 text-[10px] font-semibold tracking-wider text-slate-400 uppercase">Admin</p>
+                        {visibleAdmin.map((item) => {
+                            const Icon = item.icon
+                            return (
+                                <Link key={`admin-${item.label}`} href={item.href} className={linkClassName(item)}>
+                                    <Icon className={cn("h-4 w-4", isActive(item) ? "text-blue-600" : "text-slate-500")} />
+                                    {item.label}
+                                </Link>
+                            )
+                        })}
+                    </div>
+                ) : null}
             </div>
         </aside>
     )

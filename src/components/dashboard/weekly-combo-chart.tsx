@@ -1,7 +1,7 @@
 "use client"
 
+import * as React from "react"
 import {
-    BarChart,
     Bar,
     XAxis,
     YAxis,
@@ -13,9 +13,27 @@ import {
     Legend,
 } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { weeklyData } from "@/data/mock-data"
+
+interface WeeklyDataItem {
+    name: string
+    planned: number
+    completed: number
+    resource: number
+}
 
 export function WeeklyComboChart() {
+    const [weeklyData, setWeeklyData] = React.useState<WeeklyDataItem[]>([])
+
+    React.useEffect(() => {
+        const run = async () => {
+            const res = await fetch("/api/public/dashboard/weekly")
+            if (!res.ok) return
+            const payload = await res.json()
+            setWeeklyData(payload.items ?? [])
+        }
+        run()
+    }, [])
+
     return (
         <Card className="col-span-4">
             <CardHeader>

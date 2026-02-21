@@ -1,7 +1,7 @@
 "use client"
 
+import * as React from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { project } from "@/data/mock-data"
 import { CheckCircle2, Clock, AlertTriangle, ListChecks, TrendingUp } from "lucide-react"
 
 function GaugeChart({ value }: { value: number }) {
@@ -41,22 +41,48 @@ function GaugeChart({ value }: { value: number }) {
     )
 }
 
-const kpiCards = [
-    { label: "전체 작업", value: project.totalTasks, icon: ListChecks, color: "text-slate-700", bgColor: "bg-slate-100" },
-    { label: "진행중", value: project.inProgressTasks, icon: Clock, color: "text-blue-600", bgColor: "bg-blue-50" },
-    { label: "완료", value: project.completedTasks, icon: CheckCircle2, color: "text-emerald-600", bgColor: "bg-emerald-50" },
-    { label: "지연", value: project.delayedTasks, icon: AlertTriangle, color: "text-red-600", bgColor: "bg-red-50" },
-]
+interface KpiData {
+    totalTasks: number
+    inProgressTasks: number
+    completedTasks: number
+    delayedTasks: number
+    overallProgress: number
+}
 
 export function KpiWidgets() {
+    const [kpi, setKpi] = React.useState<KpiData>({
+        totalTasks: 0,
+        inProgressTasks: 0,
+        completedTasks: 0,
+        delayedTasks: 0,
+        overallProgress: 0,
+    })
+
+    React.useEffect(() => {
+        const run = async () => {
+            const res = await fetch("/api/public/dashboard/kpi")
+            if (!res.ok) return
+            const data = await res.json()
+            setKpi(data)
+        }
+        run()
+    }, [])
+
+    const kpiCards = [
+        { label: "전체 작업", value: kpi.totalTasks, icon: ListChecks, color: "text-slate-700", bgColor: "bg-slate-100" },
+        { label: "진행중", value: kpi.inProgressTasks, icon: Clock, color: "text-blue-600", bgColor: "bg-blue-50" },
+        { label: "완료", value: kpi.completedTasks, icon: CheckCircle2, color: "text-emerald-600", bgColor: "bg-emerald-50" },
+        { label: "지연", value: kpi.delayedTasks, icon: AlertTriangle, color: "text-red-600", bgColor: "bg-red-50" },
+    ]
+
     return (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
             {/* Gauge Card */}
             <Card className="lg:col-span-1 flex flex-col items-center justify-center py-6">
-                <GaugeChart value={project.overallProgress} />
+                <GaugeChart value={kpi.overallProgress} />
                 <div className="mt-2 flex items-center gap-1 text-xs text-emerald-600 font-medium">
                     <TrendingUp className="h-3 w-3" />
-                    +2% 지난주 대비
+                    실시간 집계
                 </div>
             </Card>
 

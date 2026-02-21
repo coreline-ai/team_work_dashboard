@@ -1,25 +1,41 @@
 "use client"
 
+import * as React from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { tasks } from "@/data/mock-data"
-import { TaskStatus } from "@/data/types"
 import { format, parseISO } from "date-fns"
 
+type TaskStatus = "COMPLETED" | "IN_PROGRESS" | "PENDING" | "DELAYED"
+
 const statusMap: Record<TaskStatus, { label: string; variant: "completed" | "progress" | "pending" | "delayed" }> = {
-    [TaskStatus.COMPLETED]: { label: "완료", variant: "completed" },
-    [TaskStatus.IN_PROGRESS]: { label: "진행중", variant: "progress" },
-    [TaskStatus.PENDING]: { label: "대기", variant: "pending" },
-    [TaskStatus.DELAYED]: { label: "지연", variant: "delayed" },
+    COMPLETED: { label: "완료", variant: "completed" },
+    IN_PROGRESS: { label: "진행중", variant: "progress" },
+    PENDING: { label: "대기", variant: "pending" },
+    DELAYED: { label: "지연", variant: "delayed" },
 }
 
 export function RecentActivityTable() {
-    // Show root-level tasks sorted by end date
-    const recentTasks = tasks
-        .filter(t => t.depth === 0)
-        .sort((a, b) => new Date(b.endDate).getTime() - new Date(a.endDate).getTime())
-        .slice(0, 8)
+    const [recentTasks, setRecentTasks] = React.useState<Array<{
+        id: string
+        title: string
+        phase: string
+        status: TaskStatus
+        progress: number
+        startDate: string
+        endDate: string
+        assignee: { id: string; name: string; avatarUrl?: string | null }
+    }>>([])
+
+    React.useEffect(() => {
+        const run = async () => {
+            const res = await fetch("/api/public/dashboard/recent-activity")
+            if (!res.ok) return
+            const payload = await res.json()
+            setRecentTasks(payload.items ?? [])
+        }
+        run()
+    }, [])
 
     return (
         <Card>
@@ -52,7 +68,7 @@ export function RecentActivityTable() {
                                         <td className="py-3 px-4">
                                             <div className="flex items-center gap-2">
                                                 <Avatar className="h-6 w-6 text-[10px]">
-                                                    <AvatarFallback>{task.assignee.avatar}</AvatarFallback>
+                                                    <AvatarFallback>{task.assignee.name.slice(0, 2)}</AvatarFallback>
                                                 </Avatar>
                                                 <span className="text-slate-700">{task.assignee.name}</span>
                                             </div>

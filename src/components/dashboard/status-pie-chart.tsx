@@ -1,10 +1,28 @@
 "use client"
 
+import * as React from "react"
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { statusDistribution } from "@/data/mock-data"
+
+interface StatusDistributionItem {
+    name: string
+    value: number
+    color: string
+}
 
 export function StatusPieChart() {
+    const [statusDistribution, setStatusDistribution] = React.useState<StatusDistributionItem[]>([])
+
+    React.useEffect(() => {
+        const run = async () => {
+            const res = await fetch("/api/public/dashboard/status-distribution")
+            if (!res.ok) return
+            const payload = await res.json()
+            setStatusDistribution(payload.items ?? [])
+        }
+        run()
+    }, [])
+
     return (
         <Card className="col-span-3">
             <CardHeader>

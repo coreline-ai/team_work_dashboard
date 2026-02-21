@@ -56,3 +56,28 @@ export interface StatusDistribution {
     value: number
     color: string
 }
+
+export interface PhaseSummary {
+    phase: string
+    totalTasks: number
+    completedTasks: number
+    delayedTasks: number
+    progress: number
+}
+
+export interface MemberSummary {
+    memberId: string
+    name: string
+    role: string
+    totalTasks: number
+    inProgressTasks: number
+    delayedTasks: number
+    completionRate: number
+}
+
+export interface UserSettings {
+    notificationEmail: string
+    dailySummary: boolean
+    delayedAlerts: boolean
+    defaultStartPage: "/" | "/tasks" | "/projects" | "/team-members" | "/settings"
+}
