@@ -7,6 +7,7 @@ import { AlertTriangle, CalendarClock, FolderKanban, PlusCircle, ShieldCheck, Ta
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useAdminMode } from "@/components/providers/admin-mode-provider"
 import type { ProjectHealth, PublicProjectOverview, PublicProjectSummary } from "@/types/domain"
 
 interface AdminProjectItem {
@@ -32,7 +33,9 @@ function HealthBadge({ health }: { health: ProjectHealth }) {
 
 export default function ProjectsPage() {
   const { data: session } = useSession()
+  const { enabled: adminModeEnabled } = useAdminMode()
   const isAdmin = session?.user?.role === "ADMIN"
+  const showAdminControls = isAdmin && adminModeEnabled
 
   const [projects, setProjects] = React.useState<PublicProjectSummary[]>([])
   const [selectedProjectId, setSelectedProjectId] = React.useState("")
@@ -90,7 +93,7 @@ export default function ProjectsPage() {
   }, [])
 
   const fetchAdminProjects = React.useCallback(async () => {
-    if (!isAdmin) return
+    if (!showAdminControls) return
 
     const res = await fetch("/api/projects?includeArchived=true")
     if (!res.ok) {
@@ -107,7 +110,7 @@ export default function ProjectsPage() {
       if (selectedProjectId && next.some((project) => project.id === selectedProjectId)) return selectedProjectId
       return next[0]?.id ?? ""
     })
-  }, [isAdmin, selectedProjectId])
+  }, [selectedProjectId, showAdminControls])
 
   React.useEffect(() => {
     fetchProjects()
@@ -122,7 +125,7 @@ export default function ProjectsPage() {
   }, [fetchAdminProjects])
 
   React.useEffect(() => {
-    if (!isAdmin || !adminProjectId) return
+    if (!showAdminControls || !adminProjectId) return
 
     const current = adminProjects.find((project) => project.id === adminProjectId)
     if (!current) return
@@ -130,10 +133,10 @@ export default function ProjectsPage() {
     setEditName(current.name)
     setEditDescription(current.description ?? "")
     setEditArchived(current.isArchived)
-  }, [adminProjectId, adminProjects, isAdmin])
+  }, [adminProjectId, adminProjects, showAdminControls])
 
   const onCreateProject = async () => {
-    if (!isAdmin || !createName.trim()) return
+    if (!showAdminControls || !createName.trim()) return
 
     setAdminLoading(true)
     setAdminMessage("")
@@ -157,7 +160,7 @@ export default function ProjectsPage() {
   }
 
   const onUpdateProject = async () => {
-    if (!isAdmin || !adminProjectId || !editName.trim()) return
+    if (!showAdminControls || !adminProjectId || !editName.trim()) return
 
     setAdminLoading(true)
     setAdminMessage("")
@@ -369,8 +372,8 @@ export default function ProjectsPage() {
         </div>
       </div>
 
-      {isAdmin ? (
-        <Card>
+      {showAdminControls ? (
+        <Card data-testid="projects-admin-panel">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 text-slate-500" />
@@ -385,6 +388,7 @@ export default function ProjectsPage() {
               </p>
               <div className="grid gap-2 md:grid-cols-3">
                 <input
+                  data-testid="projects-admin-create-name"
                   placeholder="프로젝트명"
                   value={createName}
                   onChange={(event) => setCreateName(event.target.value)}
@@ -396,7 +400,7 @@ export default function ProjectsPage() {
                   onChange={(event) => setCreateDescription(event.target.value)}
                   className="h-9 rounded-md border border-slate-200 px-3 text-sm"
                 />
-                <Button onClick={onCreateProject} disabled={adminLoading}>생성</Button>
+                <Button data-testid="projects-admin-create-submit" onClick={onCreateProject} disabled={adminLoading}>생성</Button>
               </div>
             </div>
 
@@ -441,6 +445,9 @@ export default function ProjectsPage() {
               </div>
               <div className="flex gap-2">
                 <Button onClick={onUpdateProject} disabled={adminLoading || !adminProjectId}>저장</Button>
+                <Link href="/settings#project-search-synonyms">
+                  <Button variant="outline" disabled={adminLoading}>검색 사전 설정</Button>
+                </Link>
                 {adminMessage ? <span className="text-xs text-slate-500 self-center">{adminMessage}</span> : null}
               </div>
             </div>

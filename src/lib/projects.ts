@@ -1,5 +1,15 @@
-import { TaskStatus } from "@prisma/client"
-import type { ProjectHealth, PublicDashboardKpi, PublicProjectOverview, PublicProjectSummary } from "@/types/domain"
+﻿import { TaskStatus } from "@prisma/client"
+import { getRecentActivity, getStatusDistribution, getWeeklyMetrics } from "@/lib/dashboard"
+import type {
+  PortfolioDashboardOverview,
+  ProjectHealth,
+  ProjectMemberTaskDetail,
+  ProjectMemberWorkload,
+  ProjectScheduleLane,
+  PublicDashboardKpi,
+  PublicProjectOverview,
+  PublicProjectSummary,
+} from "@/types/domain"
 import { prisma } from "@/lib/prisma"
 
 interface HealthInput {
@@ -12,6 +22,30 @@ type TaskLike = {
   status: TaskStatus
   progress: number
   endDate: Date
+}
+
+type ProjectTask = {
+  id: string
+  title: string
+  phase: string
+  status: TaskStatus
+  priority: "HIGH" | "MEDIUM" | "LOW"
+  startDate: Date
+  endDate: Date
+  progress: number
+  parentId: string | null
+  assigneeId: string
+  createdById: string
+  updatedById: string
+  deletedAt: Date | null
+  createdAt: Date
+  updatedAt: Date
+  projectId: string
+  assignee: {
+    id: string
+    name: string
+    role: "ADMIN" | "MEMBER"
+  }
 }
 
 export function computeProjectHealth(input: HealthInput): ProjectHealth {
@@ -57,6 +91,52 @@ function buildHealth(tasks: TaskLike[], now: Date) {
   return computeProjectHealth({ delayedRate, overdueOpenCount, dueSoonCount })
 }
 
+function computeDepthById(
+  id: string,
+  parentMap: Map<string, string | null>,
+  depthMap: Map<string, number>,
+): number {
+  if (depthMap.has(id)) return depthMap.get(id) ?? 0
+
+  const parentId = parentMap.get(id)
+  if (!parentId || !parentMap.has(parentId)) {
+    depthMap.set(id, 0)
+    return 0
+  }
+
+  const depth = computeDepthById(parentId, parentMap, depthMap) + 1
+  depthMap.set(id, depth)
+  return depth
+}
+
+function buildLane(id: string, label: string, laneType: "PHASE" | "MEMBER", tasks: ProjectTask[]): ProjectScheduleLane {
+  const totalTasks = tasks.length
+  const completedTasks = tasks.filter((task) => task.status === TaskStatus.COMPLETED).length
+  const delayedTasks = tasks.filter((task) => task.status === TaskStatus.DELAYED).length
+  const progress = totalTasks === 0 ? 0 : Math.round(tasks.reduce((acc, task) => acc + task.progress, 0) / totalTasks)
+
+  const startDate = tasks.reduce(
+    (min, task) => (task.startDate < min ? task.startDate : min),
+    tasks[0]?.startDate ?? new Date(),
+  )
+  const endDate = tasks.reduce(
+    (max, task) => (task.endDate > max ? task.endDate : max),
+    tasks[0]?.endDate ?? new Date(),
+  )
+
+  return {
+    id,
+    label,
+    laneType,
+    startDate: startDate.toISOString(),
+    endDate: endDate.toISOString(),
+    totalTasks,
+    completedTasks,
+    delayedTasks,
+    progress,
+  }
+}
+
 export async function getProjectSummaries(): Promise<PublicProjectSummary[]> {
   const now = new Date()
   const projects = await prisma.project.findMany({
@@ -88,6 +168,39 @@ export async function getProjectSummaries(): Promise<PublicProjectSummary[]> {
   })
 }
 
+export async function getPortfolioOverview(): Promise<PortfolioDashboardOverview> {
+  const [kpi, weekly, statusDistribution, recentActivity, projects] = await Promise.all([
+    (async () => {
+      const tasks = await prisma.task.findMany({
+        where: { deletedAt: null, project: { isArchived: false } },
+        select: { status: true, progress: true, endDate: true },
+      })
+      return buildKpi(tasks)
+    })(),
+    getWeeklyMetrics(),
+    getStatusDistribution(),
+    getRecentActivity(),
+    getProjectSummaries(),
+  ])
+
+  const projectHealth = projects.map((project) => ({
+    id: project.id,
+    name: project.name,
+    totalTasks: project.totalTasks,
+    delayedTasks: project.delayedTasks,
+    overallProgress: project.overallProgress,
+    health: project.health,
+  }))
+
+  return {
+    kpi,
+    weekly,
+    statusDistribution,
+    recentActivity,
+    projectHealth,
+  }
+}
+
 export async function getProjectOverview(projectId: string): Promise<PublicProjectOverview | null> {
   const project = await prisma.project.findFirst({
     where: {
@@ -102,7 +215,7 @@ export async function getProjectOverview(projectId: string): Promise<PublicProje
   })
   if (!project) return null
 
-  const tasks = await prisma.task.findMany({
+  const tasks: ProjectTask[] = await prisma.task.findMany({
     where: {
       projectId,
       deletedAt: null,
@@ -110,7 +223,9 @@ export async function getProjectOverview(projectId: string): Promise<PublicProje
     include: {
       assignee: {
         select: {
+          id: true,
           name: true,
+          role: true,
         },
       },
     },
@@ -126,6 +241,26 @@ export async function getProjectOverview(projectId: string): Promise<PublicProje
 
   const phaseMap = new Map<string, { total: number; completed: number; delayed: number }>()
   const timelineMap = new Map<string, { startDate: Date; endDate: Date; totalTasks: number; completedTasks: number }>()
+  const laneByPhase = new Map<string, ProjectTask[]>()
+  const laneByMember = new Map<string, { label: string; tasks: ProjectTask[] }>()
+
+  const parentMap = new Map(tasks.map((task) => [task.id, task.parentId]))
+  const depthMap = new Map<string, number>()
+
+  const memberWorkloadsMap = new Map<
+    string,
+    {
+      memberId: string
+      memberName: string
+      role: "ADMIN" | "MEMBER"
+      tasks: ProjectMemberTaskDetail[]
+      totalTasks: number
+      inProgressTasks: number
+      completedTasks: number
+      delayedTasks: number
+      pendingTasks: number
+    }
+  >()
 
   for (const task of tasks) {
     const phaseCurrent = phaseMap.get(task.phase) ?? { total: 0, completed: 0, delayed: 0 }
@@ -149,6 +284,50 @@ export async function getProjectOverview(projectId: string): Promise<PublicProje
       if (task.status === TaskStatus.COMPLETED) timelineCurrent.completedTasks += 1
       timelineMap.set(task.phase, timelineCurrent)
     }
+
+    const phaseLaneTasks = laneByPhase.get(task.phase) ?? []
+    phaseLaneTasks.push(task)
+    laneByPhase.set(task.phase, phaseLaneTasks)
+
+    const memberLane = laneByMember.get(task.assignee.id) ?? { label: task.assignee.name, tasks: [] }
+    memberLane.tasks.push(task)
+    laneByMember.set(task.assignee.id, memberLane)
+
+    const depth = computeDepthById(task.id, parentMap, depthMap)
+    const memberCurrent =
+      memberWorkloadsMap.get(task.assignee.id) ??
+      {
+        memberId: task.assignee.id,
+        memberName: task.assignee.name,
+        role: task.assignee.role,
+        tasks: [],
+        totalTasks: 0,
+        inProgressTasks: 0,
+        completedTasks: 0,
+        delayedTasks: 0,
+        pendingTasks: 0,
+      }
+
+    memberCurrent.totalTasks += 1
+    if (task.status === TaskStatus.IN_PROGRESS) memberCurrent.inProgressTasks += 1
+    if (task.status === TaskStatus.COMPLETED) memberCurrent.completedTasks += 1
+    if (task.status === TaskStatus.DELAYED) memberCurrent.delayedTasks += 1
+    if (task.status === TaskStatus.PENDING) memberCurrent.pendingTasks += 1
+
+    memberCurrent.tasks.push({
+      id: task.id,
+      title: task.title,
+      phase: task.phase,
+      status: task.status,
+      priority: task.priority,
+      startDate: task.startDate.toISOString(),
+      endDate: task.endDate.toISOString(),
+      progress: task.progress,
+      parentId: task.parentId,
+      depth,
+    })
+
+    memberWorkloadsMap.set(task.assignee.id, memberCurrent)
   }
 
   const phaseSummary = Array.from(phaseMap.entries()).map(([phase, data]) => ({
@@ -195,6 +374,47 @@ export async function getProjectOverview(projectId: string): Promise<PublicProje
       priority: task.priority,
     }))
 
+  const updatedAtById = new Map(tasks.map((task) => [task.id, task.updatedAt.getTime()]))
+
+  const memberWorkloads: ProjectMemberWorkload[] = Array.from(memberWorkloadsMap.values())
+    .map((member) => ({
+      memberId: member.memberId,
+      memberName: member.memberName,
+      role: member.role,
+      totalTasks: member.totalTasks,
+      inProgressTasks: member.inProgressTasks,
+      completedTasks: member.completedTasks,
+      delayedTasks: member.delayedTasks,
+      pendingTasks: member.pendingTasks,
+      completionRate: member.totalTasks === 0 ? 0 : Math.round((member.completedTasks / member.totalTasks) * 100),
+      tasks: member.tasks.sort((a, b) => {
+        if (a.depth !== b.depth) return a.depth - b.depth
+        const startDiff = new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
+        if (startDiff !== 0) return startDiff
+        return (updatedAtById.get(b.id) ?? 0) - (updatedAtById.get(a.id) ?? 0)
+      }),
+    }))
+    .sort((a, b) => b.totalTasks - a.totalTasks || a.memberName.localeCompare(b.memberName))
+
+  const projectStartDate = tasks.length > 0
+    ? tasks.reduce((min, task) => (task.startDate < min ? task.startDate : min), tasks[0].startDate)
+    : now
+  const projectEndDate = tasks.length > 0
+    ? tasks.reduce((max, task) => (task.endDate > max ? task.endDate : max), tasks[0].endDate)
+    : now
+  const openTasks = tasks.filter((task) => isOpenTask(task.status))
+  const forecastCompletionDate = openTasks.length > 0
+    ? openTasks.reduce((max, task) => (task.endDate > max ? task.endDate : max), openTasks[0].endDate)
+    : projectEndDate
+
+  const phaseLanes = Array.from(laneByPhase.entries())
+    .map(([phase, phaseTasks]) => buildLane(`phase:${phase}`, phase, "PHASE", phaseTasks))
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))
+
+  const memberLanes = Array.from(laneByMember.entries())
+    .map(([memberId, memberLane]) => buildLane(`member:${memberId}`, memberLane.label, "MEMBER", memberLane.tasks))
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))
+
   return {
     project,
     kpi,
@@ -203,6 +423,15 @@ export async function getProjectOverview(projectId: string): Promise<PublicProje
     risks: {
       delayed,
       dueSoon,
+    },
+    memberWorkloads,
+    schedule: {
+      projectStartDate: projectStartDate.toISOString(),
+      projectEndDate: projectEndDate.toISOString(),
+      forecastCompletionDate: forecastCompletionDate.toISOString(),
+      today: now.toISOString(),
+      phaseLanes,
+      memberLanes,
     },
     health,
   }

@@ -57,7 +57,7 @@ export default function SignupPage() {
         <div className="flex items-center justify-between gap-2">
           <CardTitle>회원가입</CardTitle>
           <Link href="/">
-            <Button variant="outline" size="sm">홈으로</Button>
+            <Button variant="outline" size="sm" data-testid="signup-home-button">홈으로</Button>
           </Link>
         </div>
       </CardHeader>

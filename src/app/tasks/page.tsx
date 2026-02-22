@@ -22,6 +22,10 @@ interface TaskItem {
   parentId?: string | null
   depth: number
   projectId: string
+  project?: {
+    id: string
+    name: string
+  }
   assigneeId?: string
   createdById?: string
   assignee: {
@@ -358,6 +362,47 @@ function TasksPageContent() {
     setExpandedTaskIds((prev) => ({ ...prev, [taskId]: !prev[taskId] }))
   }
 
+  const groupedProjectRows = React.useMemo(() => {
+    const projectNameById = new Map(projectOptions.map((project) => [project.id, project.name]))
+    const map = new Map<
+      string,
+      {
+        projectId: string
+        projectName: string
+        tasks: TaskItem[]
+        total: number
+        completed: number
+        inProgress: number
+        delayed: number
+      }
+    >()
+
+    for (const task of visibleTaskRows) {
+      const projectId = task.projectId
+      const projectName = task.project?.name ?? projectNameById.get(projectId) ?? "Unknown Project"
+      const current =
+        map.get(projectId) ??
+        {
+          projectId,
+          projectName,
+          tasks: [],
+          total: 0,
+          completed: 0,
+          inProgress: 0,
+          delayed: 0,
+        }
+
+      current.tasks.push(task)
+      current.total += 1
+      if (task.status === "COMPLETED") current.completed += 1
+      if (task.status === "IN_PROGRESS") current.inProgress += 1
+      if (task.status === "DELAYED") current.delayed += 1
+      map.set(projectId, current)
+    }
+
+    return Array.from(map.values()).sort((a, b) => a.projectName.localeCompare(b.projectName))
+  }, [projectOptions, visibleTaskRows])
+
   return (
     <div className="flex flex-col gap-6 w-full max-w-7xl mx-auto">
       <div className="flex flex-col gap-1">
@@ -556,82 +601,97 @@ function TasksPageContent() {
           {loading ? (
             <div className="text-sm text-slate-500">업무를 불러오는 중...</div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
-                <thead>
-                  <tr className="border-b border-slate-100">
-                    <th className="py-3 px-4 text-xs uppercase text-slate-500">업무명</th>
-                    <th className="py-3 px-4 text-xs uppercase text-slate-500">Phase</th>
-                    <th className="py-3 px-4 text-xs uppercase text-slate-500">담당자</th>
-                    <th className="py-3 px-4 text-xs uppercase text-slate-500">상태</th>
-                    <th className="py-3 px-4 text-xs uppercase text-slate-500">우선순위</th>
-                    <th className="py-3 px-4 text-xs uppercase text-slate-500">일정</th>
-                    <th className="py-3 px-4 text-xs uppercase text-slate-500">진행률</th>
-                    {isAuthenticated ? <th className="py-3 px-4 text-xs uppercase text-slate-500">액션</th> : null}
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleTaskRows.map((task) => {
-                    const childCount = (taskChildrenMap.get(task.id) ?? []).length
-                    const hasChildren = childCount > 0
-                    const isExpanded = Boolean(expandedTaskIds[task.id])
+            <div className="space-y-4">
+              {groupedProjectRows.map((group) => (
+                <div key={group.projectId} className="rounded-lg border border-slate-200 overflow-hidden">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-sm font-semibold text-slate-800">{group.projectName}</p>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      <span className="rounded bg-white px-2 py-1 text-slate-600 border border-slate-200">전체 {group.total}</span>
+                      <span className="rounded bg-blue-50 px-2 py-1 text-blue-700 border border-blue-100">진행중 {group.inProgress}</span>
+                      <span className="rounded bg-emerald-50 px-2 py-1 text-emerald-700 border border-emerald-100">완료 {group.completed}</span>
+                      <span className="rounded bg-rose-50 px-2 py-1 text-rose-700 border border-rose-100">지연 {group.delayed}</span>
+                    </div>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                      <thead>
+                        <tr className="border-b border-slate-100">
+                          <th className="py-3 px-4 text-xs uppercase text-slate-500">업무명</th>
+                          <th className="py-3 px-4 text-xs uppercase text-slate-500">Phase</th>
+                          <th className="py-3 px-4 text-xs uppercase text-slate-500">담당자</th>
+                          <th className="py-3 px-4 text-xs uppercase text-slate-500">상태</th>
+                          <th className="py-3 px-4 text-xs uppercase text-slate-500">우선순위</th>
+                          <th className="py-3 px-4 text-xs uppercase text-slate-500">일정</th>
+                          <th className="py-3 px-4 text-xs uppercase text-slate-500">진행률</th>
+                          {isAuthenticated ? <th className="py-3 px-4 text-xs uppercase text-slate-500">액션</th> : null}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.tasks.map((task) => {
+                          const childCount = (taskChildrenMap.get(task.id) ?? []).length
+                          const hasChildren = childCount > 0
+                          const isExpanded = Boolean(expandedTaskIds[task.id])
 
-                    return (
-                      <tr key={task.id} className="border-b border-slate-50">
-                        <td className="py-3 px-4 font-medium text-slate-800" style={{ paddingLeft: `${task.depth * 20 + 16}px` }}>
-                          <div className="flex items-center gap-1.5">
-                            {hasChildren ? (
-                              <button
-                                type="button"
-                                aria-label={isExpanded ? "하위 업무 접기" : "하위 업무 펼치기"}
-                                onClick={() => toggleTaskExpanded(task.id)}
-                                className="inline-flex h-5 w-5 items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-100"
-                              >
-                                {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                              </button>
-                            ) : (
-                              <span className="inline-block h-5 w-5" />
-                            )}
-                            <span>{task.title}</span>
-                            {hasChildren ? <span className="text-xs text-slate-400">({childCount})</span> : null}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-slate-700">{task.phase}</td>
-                        <td className="py-3 px-4 text-slate-700">{task.assignee.name}</td>
-                        <td className="py-3 px-4 text-slate-600">
-                          <StatusBadge status={task.status} />
-                        </td>
-                        <td className="py-3 px-4 text-slate-600">{priorityLabel[task.priority]}</td>
-                        <td className="py-3 px-4 text-slate-600">{task.startDate.slice(0, 10)} ~ {task.endDate.slice(0, 10)}</td>
-                        <td className="py-3 px-4">
-                          <div className="flex min-w-28 items-center gap-2">
-                            <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
-                              <div
-                                className="h-full rounded-full bg-blue-600 transition-all"
-                                style={{ width: `${task.progress}%` }}
-                              />
-                            </div>
-                            <span className="text-slate-600">{task.progress}%</span>
-                          </div>
-                        </td>
-                        {isAuthenticated ? (
-                          <td className="py-3 px-4 flex gap-2">
-                            <Button size="sm" variant="outline" onClick={() => onEdit(task)} className="gap-1">
-                              <Pencil className="h-3.5 w-3.5" />
-                              수정
-                            </Button>
-                            <Button size="sm" variant="destructive" onClick={() => onDelete(task.id)} className="gap-1">
-                              <Trash2 className="h-3.5 w-3.5" />
-                              삭제
-                            </Button>
-                          </td>
-                        ) : null}
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-              {visibleTaskRows.length === 0 ? <div className="text-sm text-slate-500 py-4">조회된 업무가 없습니다.</div> : null}
+                          return (
+                            <tr key={task.id} className="border-b border-slate-50">
+                              <td className="py-3 px-4 font-medium text-slate-800" style={{ paddingLeft: `${task.depth * 20 + 16}px` }}>
+                                <div className="flex items-center gap-1.5">
+                                  {hasChildren ? (
+                                    <button
+                                      type="button"
+                                      aria-label={isExpanded ? "하위 업무 접기" : "하위 업무 펼치기"}
+                                      onClick={() => toggleTaskExpanded(task.id)}
+                                      className="inline-flex h-5 w-5 items-center justify-center rounded border border-slate-200 text-slate-500 hover:bg-slate-100"
+                                    >
+                                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                    </button>
+                                  ) : (
+                                    <span className="inline-block h-5 w-5" />
+                                  )}
+                                  <span>{task.title}</span>
+                                  {hasChildren ? <span className="text-xs text-slate-400">({childCount})</span> : null}
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-slate-700">{task.phase}</td>
+                              <td className="py-3 px-4 text-slate-700">{task.assignee.name}</td>
+                              <td className="py-3 px-4 text-slate-600">
+                                <StatusBadge status={task.status} />
+                              </td>
+                              <td className="py-3 px-4 text-slate-600">{priorityLabel[task.priority]}</td>
+                              <td className="py-3 px-4 text-slate-600">{task.startDate.slice(0, 10)} ~ {task.endDate.slice(0, 10)}</td>
+                              <td className="py-3 px-4">
+                                <div className="flex min-w-28 items-center gap-2">
+                                  <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
+                                    <div
+                                      className="h-full rounded-full bg-blue-600 transition-all"
+                                      style={{ width: `${task.progress}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-slate-600">{task.progress}%</span>
+                                </div>
+                              </td>
+                              {isAuthenticated ? (
+                                <td className="py-3 px-4 flex gap-2">
+                                  <Button size="sm" variant="outline" onClick={() => onEdit(task)} className="gap-1">
+                                    <Pencil className="h-3.5 w-3.5" />
+                                    수정
+                                  </Button>
+                                  <Button size="sm" variant="destructive" onClick={() => onDelete(task.id)} className="gap-1">
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                    삭제
+                                  </Button>
+                                </td>
+                              ) : null}
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+              {groupedProjectRows.length === 0 ? <div className="text-sm text-slate-500 py-4">조회된 업무가 없습니다.</div> : null}
             </div>
           )}
         </CardContent>

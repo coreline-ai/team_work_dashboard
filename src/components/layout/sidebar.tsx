@@ -5,16 +5,21 @@ import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { useAdminMode } from "@/components/providers/admin-mode-provider"
 import { adminNavigation, primaryNavigation, secondaryNavigation, type NavItem } from "@/config/navigation"
 
 export function Sidebar({ className }: { className?: string }) {
     const pathname = usePathname()
     const { data: session } = useSession()
+    const { enabled: adminModeEnabled } = useAdminMode()
 
     const isAuthenticated = Boolean(session?.user)
     const userRole = session?.user?.role
 
     const isActive = (item: NavItem) => {
+        if (item.href === "/dashboard/portfolio") {
+            return pathname === "/" || pathname === "/dashboard/portfolio" || pathname.startsWith("/dashboard/projects/")
+        }
         if (item.href === "/") return pathname === "/"
         return pathname === item.href || pathname.startsWith(`${item.href}/`)
     }
@@ -34,7 +39,7 @@ export function Sidebar({ className }: { className?: string }) {
 
     const visiblePrimary = primaryNavigation.filter(hasAccess)
     const visibleSecondary = secondaryNavigation.filter(hasAccess)
-    const visibleAdmin = adminNavigation.filter(hasAccess)
+    const visibleAdmin = adminModeEnabled ? adminNavigation.filter(hasAccess) : []
 
     return (
         <aside className={cn("flex flex-col bg-slate-50 border-r border-slate-200 h-full", className)}>

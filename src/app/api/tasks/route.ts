@@ -49,6 +49,7 @@ export async function GET(req: Request) {
 
   const where: {
     deletedAt: null
+    project?: { isArchived: boolean }
     projectId?: string
     status?: TaskStatus
     phase?: { contains: string; mode: "insensitive" }
@@ -57,6 +58,7 @@ export async function GET(req: Request) {
     assigneeId?: string
   } = {
     deletedAt: null,
+    project: { isArchived: false },
   }
 
   if (projectId) {
@@ -90,6 +92,7 @@ export async function GET(req: Request) {
     orderBy: [{ phase: "asc" }, { createdAt: "asc" }],
     include: {
       assignee: { select: { id: true, name: true, avatarUrl: true } },
+      project: { select: { id: true, name: true } },
     },
   })
 
@@ -109,6 +112,7 @@ export async function GET(req: Request) {
     parentId: task.parentId,
     depth: computeDepthById(task.id, parentMap, depthMap),
     projectId: task.projectId,
+    project: task.project,
     createdById: task.createdById,
     assigneeId: task.assigneeId,
     assignee: task.assignee,
@@ -127,15 +131,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "유효하지 않은 요청입니다.", details: parsed.error.flatten() }, { status: 400 })
   }
 
-  const projectId =
-    parsed.data.projectId ??
-    (
-      await prisma.project.findFirst({
-        where: { isArchived: false },
-        select: { id: true },
-        orderBy: { createdAt: "asc" },
-      })
-    )?.id
+  const projectId = parsed.data.projectId
+    ? (
+        await prisma.project.findFirst({
+          where: { id: parsed.data.projectId, isArchived: false },
+          select: { id: true },
+        })
+      )?.id
+    : (
+        await prisma.project.findFirst({
+          where: { isArchived: false },
+          select: { id: true },
+          orderBy: { createdAt: "asc" },
+        })
+      )?.id
 
   if (!projectId) {
     return NextResponse.json({ message: "연결 가능한 프로젝트가 없습니다." }, { status: 400 })

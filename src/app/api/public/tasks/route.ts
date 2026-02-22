@@ -27,6 +27,7 @@ export async function GET(req: Request) {
 
   const where: {
     deletedAt: null
+    project?: { isArchived: boolean }
     projectId?: string
     status?: TaskStatus
     phase?: { contains: string; mode: "insensitive" }
@@ -37,6 +38,7 @@ export async function GET(req: Request) {
     >
   } = {
     deletedAt: null,
+    project: { isArchived: false },
   }
 
   if (projectId) {
@@ -61,6 +63,7 @@ export async function GET(req: Request) {
     orderBy: [{ phase: "asc" }, { createdAt: "asc" }],
     include: {
       assignee: { select: { id: true, name: true, avatarUrl: true } },
+      project: { select: { id: true, name: true } },
     },
   })
 
@@ -80,6 +83,7 @@ export async function GET(req: Request) {
     parentId: task.parentId,
     depth: computeDepthById(task.id, parentMap, depthMap),
     projectId: task.projectId,
+    project: task.project,
     assignee: {
       id: task.assignee.id,
       name: task.assignee.name,

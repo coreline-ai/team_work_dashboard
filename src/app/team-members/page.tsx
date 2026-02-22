@@ -4,6 +4,7 @@ import * as React from "react"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useAdminMode } from "@/components/providers/admin-mode-provider"
 import { getRoleLabel } from "@/lib/role-label"
 import type { PublicTeamMember, Role } from "@/types/domain"
 
@@ -24,7 +25,9 @@ const emptyCreateForm = {
 
 export default function TeamMembersPage() {
   const { data: session, status } = useSession()
+  const { enabled: adminModeEnabled } = useAdminMode()
   const isAdmin = session?.user?.role === "ADMIN"
+  const showAdminControls = isAdmin && adminModeEnabled
 
   const [publicMembers, setPublicMembers] = React.useState<PublicTeamMember[]>([])
   const [publicLoading, setPublicLoading] = React.useState(true)
@@ -49,24 +52,24 @@ export default function TeamMembersPage() {
   }, [])
 
   const fetchAdminUsers = React.useCallback(async () => {
-    if (!isAdmin) return
+    if (!showAdminControls) return
     const res = await fetch("/api/users")
     if (!res.ok) return
     const payload = await res.json()
     setAdminUsers(payload.users ?? [])
-  }, [isAdmin])
+  }, [showAdminControls])
 
   React.useEffect(() => {
     fetchPublicMembers()
   }, [fetchPublicMembers])
 
   React.useEffect(() => {
-    if (status !== "authenticated" || !isAdmin) return
+    if (status !== "authenticated" || !showAdminControls) return
     fetchAdminUsers()
-  }, [status, isAdmin, fetchAdminUsers])
+  }, [status, showAdminControls, fetchAdminUsers])
 
   const createUser = async () => {
-    if (!isAdmin) return
+    if (!showAdminControls) return
     setMessage("")
     const res = await fetch("/api/users", {
       method: "POST",
@@ -85,7 +88,7 @@ export default function TeamMembersPage() {
   }
 
   const updateUser = async (id: string, patch: Partial<Pick<TeamUser, "role" | "isActive">>) => {
-    if (!isAdmin) return
+    if (!showAdminControls) return
     const res = await fetch(`/api/users/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -101,7 +104,7 @@ export default function TeamMembersPage() {
   }
 
   const deactivateUser = async (id: string) => {
-    if (!isAdmin) return
+    if (!showAdminControls) return
     const res = await fetch(`/api/users/${id}`, { method: "DELETE" })
     if (!res.ok) {
       const payload = await res.json().catch(() => null)
@@ -152,6 +155,7 @@ export default function TeamMembersPage() {
                 <thead>
                   <tr className="border-b border-slate-100">
                     <th className="py-3 px-4 text-xs uppercase text-slate-500 border-r border-slate-100">이름</th>
+                    <th className="py-3 px-4 text-xs uppercase text-slate-500 border-r border-slate-100">프로젝트 담당</th>
                     <th className="py-3 px-4 text-xs uppercase text-slate-500 border-r border-slate-100">구분</th>
                     <th className="py-3 px-4 text-xs uppercase text-slate-500 border-r border-slate-100">역할</th>
                     <th className="py-3 px-4 text-xs uppercase text-slate-500">업무명</th>
@@ -166,6 +170,21 @@ export default function TeamMembersPage() {
                     return (
                       <tr key={member.id} className="border-b border-slate-50">
                         <td className="py-3 px-4 font-medium text-slate-800 border-r border-slate-100">{member.name}</td>
+                        <td className="py-3 px-4 border-r border-slate-100">
+                          <div className="flex flex-wrap gap-1">
+                            {(member.projectBuckets ?? []).slice(0, 3).map((bucket) => (
+                              <span
+                                key={`${member.id}-${bucket.projectId}`}
+                                className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700"
+                              >
+                                {bucket.projectName} ({bucket.total})
+                              </span>
+                            ))}
+                            {(member.projectBuckets ?? []).length === 0 ? (
+                              <span className="text-xs text-slate-400">미배정</span>
+                            ) : null}
+                          </div>
+                        </td>
                         <td className="py-3 px-4 text-slate-600 border-r border-slate-100">{member.category}</td>
                         <td className="py-3 px-4 text-slate-600 border-r border-slate-100">{getRoleLabel(member.role)}</td>
                         <td className="py-3 px-4 text-slate-600">
@@ -175,7 +194,8 @@ export default function TeamMembersPage() {
                                 key={task.id}
                                 className="inline-flex items-center rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-700"
                               >
-                                <span className="mr-1 text-slate-500">{task.phase}</span>
+                                <span className="mr-1 text-slate-500">{task.projectName ?? "프로젝트"}</span>
+                                <span className="mr-1 text-slate-500">/ {task.phase}</span>
                                 <span>{task.title}</span>
                               </span>
                             ))}
@@ -213,9 +233,9 @@ export default function TeamMembersPage() {
         </CardContent>
       </Card>
 
-      {isAdmin ? (
+      {showAdminControls ? (
         <>
-          <Card>
+          <Card data-testid="team-admin-create-panel">
             <CardHeader>
               <CardTitle className="text-base">팀원 생성 (관리자 전용)</CardTitle>
             </CardHeader>
@@ -252,7 +272,7 @@ export default function TeamMembersPage() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card data-testid="team-admin-manage-panel">
             <CardHeader>
               <CardTitle className="text-base">팀원 관리 (관리자 전용)</CardTitle>
             </CardHeader>

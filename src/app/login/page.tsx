@@ -50,7 +50,7 @@ export default function LoginPage() {
         <div className="flex items-center justify-between gap-2">
           <CardTitle>로그인</CardTitle>
           <Link href="/">
-            <Button variant="outline" size="sm">홈으로</Button>
+            <Button variant="outline" size="sm" data-testid="login-home-button">홈으로</Button>
           </Link>
         </div>
       </CardHeader>
@@ -59,6 +59,7 @@ export default function LoginPage() {
           <label className="flex flex-col gap-1.5">
             <span className="text-sm text-slate-700">이메일</span>
             <input
+              data-testid="login-email"
               type="email"
               required
               value={email}
@@ -69,6 +70,7 @@ export default function LoginPage() {
           <label className="flex flex-col gap-1.5">
             <span className="text-sm text-slate-700">비밀번호</span>
             <input
+              data-testid="login-password"
               type="password"
               required
               minLength={8}
@@ -78,7 +80,7 @@ export default function LoginPage() {
             />
           </label>
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          <Button type="submit" className="w-full" disabled={loading}>
+          <Button type="submit" className="w-full" disabled={loading} data-testid="login-submit">
             {loading ? "로그인 중..." : "로그인"}
           </Button>
           <p className="text-sm text-slate-500 text-center">

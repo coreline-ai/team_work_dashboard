@@ -63,6 +63,37 @@ export interface PublicDashboardKpi {
   overallProgress: number
 }
 
+export interface ProjectHealthSummaryItem {
+  id: string
+  name: string
+  totalTasks: number
+  delayedTasks: number
+  overallProgress: number
+  health: ProjectHealth
+}
+
+export interface PortfolioDashboardOverview {
+  kpi: PublicDashboardKpi
+  weekly: PublicWeeklyMetric[]
+  statusDistribution: PublicStatusDistributionItem[]
+  recentActivity: Array<{
+    id: string
+    title: string
+    projectId: string
+    phase: string
+    status: TaskStatus
+    progress: number
+    startDate: string
+    endDate: string
+    assignee: {
+      id: string
+      name: string
+      avatarUrl?: string | null
+    }
+  }>
+  projectHealth: ProjectHealthSummaryItem[]
+}
+
 export interface PublicWeeklyMetric {
   name: string
   planned: number
@@ -90,6 +121,10 @@ export interface PublicTaskSummary {
   parentId?: string | null
   depth: number
   projectId: string
+  project?: {
+    id: string
+    name: string
+  }
   assignee: {
     id: string
     name: string
@@ -127,6 +162,53 @@ export interface ProjectRiskItem {
   priority: TaskPriority
 }
 
+export interface ProjectMemberTaskDetail {
+  id: string
+  title: string
+  phase: string
+  status: TaskStatus
+  priority: TaskPriority
+  startDate: string
+  endDate: string
+  progress: number
+  parentId?: string | null
+  depth: number
+}
+
+export interface ProjectMemberWorkload {
+  memberId: string
+  memberName: string
+  role?: Role
+  totalTasks: number
+  inProgressTasks: number
+  completedTasks: number
+  delayedTasks: number
+  pendingTasks: number
+  completionRate: number
+  tasks: ProjectMemberTaskDetail[]
+}
+
+export interface ProjectScheduleLane {
+  id: string
+  label: string
+  laneType: "PHASE" | "MEMBER"
+  startDate: string
+  endDate: string
+  totalTasks: number
+  completedTasks: number
+  delayedTasks: number
+  progress: number
+}
+
+export interface ProjectScheduleOverview {
+  projectStartDate: string
+  projectEndDate: string
+  forecastCompletionDate: string
+  today: string
+  phaseLanes: ProjectScheduleLane[]
+  memberLanes: ProjectScheduleLane[]
+}
+
 export interface PublicProjectOverview {
   project: {
     id: string
@@ -146,8 +228,12 @@ export interface PublicProjectOverview {
     delayed: ProjectRiskItem[]
     dueSoon: ProjectRiskItem[]
   }
+  memberWorkloads: ProjectMemberWorkload[]
+  schedule: ProjectScheduleOverview
   health: ProjectHealth
 }
+
+export type ProjectDashboardOverview = PublicProjectOverview
 
 export interface ProjectUpsertPayload {
   name: string
@@ -160,6 +246,7 @@ export interface SearchFilters {
   status?: TaskStatus
   phase?: string
   projectId?: string
+  limit?: number
 }
 
 export interface SearchTaskResult {
@@ -182,6 +269,60 @@ export interface SearchMemberResult {
   role: Role
 }
 
+export interface SearchResponseMeta {
+  query: string
+  normalizedQuery: string
+  tokens: string[]
+  tookMs: number
+}
+
+export interface SearchApiResponse {
+  tasks: SearchTaskResult[]
+  projects: SearchProjectResult[]
+  members: SearchMemberResult[]
+  meta: SearchResponseMeta
+}
+
+export interface NormalizedSearchQuery {
+  raw: string
+  normalized: string
+  tokens: string[]
+  expandedTokens: string[]
+}
+
+export interface SearchSynonymItem {
+  id: string
+  projectId?: string | null
+  projectName?: string | null
+  keyword: string
+  synonyms: string[]
+  isActive: boolean
+  updatedAt: string
+}
+
+export interface TaskWithProjectSummary extends PublicTaskSummary {
+  project: {
+    id: string
+    name: string
+  }
+}
+
+export interface MemberProjectBucket {
+  projectId: string
+  projectName: string
+  total: number
+  inProgress: number
+  completed: number
+  delayed: number
+  pending: number
+}
+
+export interface AdminModeState {
+  enabled: boolean
+  toggle: () => void
+  setEnabled: (value: boolean) => void
+}
+
 export interface PublicTeamMember {
   id: string
   name: string
@@ -192,5 +333,8 @@ export interface PublicTeamMember {
     id: string
     title: string
     phase: string
+    projectId?: string
+    projectName?: string
   }>
+  projectBuckets?: MemberProjectBucket[]
 }

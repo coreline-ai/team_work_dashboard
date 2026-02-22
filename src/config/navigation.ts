@@ -2,7 +2,7 @@ import { FolderKanban, LayoutDashboard, ListTodo, Settings, ShieldCheck, Users, 
 import type { Role } from "@/types/domain"
 
 export interface NavItem {
-    href: "/" | "/tasks" | "/projects" | "/team-members" | "/settings"
+    href: "/" | "/dashboard/portfolio" | "/tasks" | "/projects" | "/team-members" | "/settings"
     label: string
     icon: LucideIcon
     requiresAuth?: boolean
@@ -10,7 +10,7 @@ export interface NavItem {
 }
 
 export const primaryNavigation: NavItem[] = [
-    { href: "/", label: "Dashboard", icon: LayoutDashboard },
+    { href: "/dashboard/portfolio", label: "Dashboard", icon: LayoutDashboard },
     { href: "/tasks", label: "Tasks", icon: ListTodo },
     { href: "/projects", label: "Projects", icon: FolderKanban },
     { href: "/team-members", label: "Team Members", icon: Users },

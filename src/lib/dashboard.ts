@@ -5,11 +5,12 @@ import { prisma } from "@/lib/prisma"
 
 export function getTaskScopeWhere(user?: Pick<User, "id" | "role"> | null): Prisma.TaskWhereInput {
   if (!user) {
-    return { deletedAt: null }
+    return { deletedAt: null, project: { isArchived: false } }
   }
-  if (isAdmin(user.role)) return { deletedAt: null }
+  if (isAdmin(user.role)) return { deletedAt: null, project: { isArchived: false } }
   return {
     deletedAt: null,
+    project: { isArchived: false },
     OR: [{ assigneeId: user.id }, { createdById: user.id }],
   }
 }
@@ -112,6 +113,7 @@ export async function getRecentActivity(user?: Pick<User, "id" | "role"> | null)
   return tasks.map((task) => ({
     id: task.id,
     title: task.title,
+    projectId: task.projectId,
     phase: task.phase,
     status: task.status,
     progress: task.progress,

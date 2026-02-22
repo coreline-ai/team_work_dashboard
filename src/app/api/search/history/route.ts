@@ -5,7 +5,7 @@ import { requireUser, unauthorized } from "@/lib/api"
 import { prisma } from "@/lib/prisma"
 
 const createSchema = z.object({
-  query: z.string().min(1).max(120),
+  query: z.string().trim().min(1).max(120),
   scope: z.enum(SearchScope),
 })
 
@@ -32,13 +32,24 @@ export async function POST(req: Request) {
     return NextResponse.json({ message: "유효하지 않은 요청입니다.", details: parsed.error.flatten() }, { status: 400 })
   }
 
-  await prisma.searchHistory.create({
-    data: {
-      userId: user.id,
-      query: parsed.data.query,
-      scope: parsed.data.scope,
-    },
-  })
+  const query = parsed.data.query.trim()
+
+  await prisma.$transaction([
+    prisma.searchHistory.deleteMany({
+      where: {
+        userId: user.id,
+        query,
+        scope: parsed.data.scope,
+      },
+    }),
+    prisma.searchHistory.create({
+      data: {
+        userId: user.id,
+        query,
+        scope: parsed.data.scope,
+      },
+    }),
+  ])
 
   const all = await prisma.searchHistory.findMany({
     where: { userId: user.id },
