@@ -348,14 +348,24 @@ function GanttChart({
         </div>
         <div className="grid grid-cols-[220px,1fr] border-b border-slate-100 bg-white">
           <div className="px-3 py-2 text-xs text-slate-400">축</div>
-          <div className="relative px-3 py-2">
+          <div className="relative px-4 py-2">
             <div className="relative h-5">
-              {tickDates.map((tickDate) => {
+              {tickDates.map((tickDate, index) => {
                 const left = toPercent(tickDate.toISOString())
+                const isFirst = index === 0
+                const isLast = index === tickDates.length - 1
                 return (
                   <div key={`tick-${tickDate.toISOString()}`} className="absolute top-0 h-full" style={{ left: `${left}%` }}>
                     <div className="h-2 border-l border-slate-300" />
-                    <span className="mt-1 block -translate-x-1/2 whitespace-nowrap text-[10px] text-slate-500">
+                    <span
+                      className={
+                        isFirst
+                          ? "mt-1 block whitespace-nowrap text-[10px] text-slate-500"
+                          : isLast
+                            ? "mt-1 block -translate-x-full whitespace-nowrap text-[10px] text-slate-500"
+                            : "mt-1 block -translate-x-1/2 whitespace-nowrap text-[10px] text-slate-500"
+                      }
+                    >
                       {formatScaleTickLabel(tickDate, scale)}
                     </span>
                   </div>
@@ -377,7 +387,7 @@ function GanttChart({
                 <div className="font-medium">{lane.label}</div>
                 <div className="text-xs text-slate-500">{lane.totalTasks}건 · 완료 {lane.completedTasks}</div>
               </div>
-              <div className="relative px-3 py-3">
+              <div className="relative px-4 py-3">
                 <div className="relative h-6 rounded bg-slate-100">
                   <div
                     className={`absolute top-1/2 h-4 -translate-y-1/2 rounded ${delayedStyle ? "bg-rose-500" : "bg-blue-600"}`}
@@ -500,7 +510,13 @@ export function ProjectDashboardPage({
             </div>
             <div className="flex gap-2">
               <Link href={source === "projects" ? "/projects" : "/dashboard/portfolio"}>
-                <Button variant="outline" size="sm">{source === "projects" ? "목록" : "포트폴리오"}</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-slate-900 border-white/80 bg-white/95 hover:bg-white"
+                >
+                  {source === "projects" ? "목록" : "포트폴리오"}
+                </Button>
               </Link>
               <Link href={`/tasks?projectId=${projectId}`}>
                 <Button size="sm">Tasks</Button>

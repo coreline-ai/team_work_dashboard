@@ -350,7 +350,15 @@ export interface ActivityLogItem {
   } | null
   before?: Record<string, unknown> | null
   after?: Record<string, unknown> | null
+  diff?: ActivityDiffRow[]
   createdAt: string
+}
+
+export interface ActivityDiffRow {
+  fieldPath: string
+  beforeValue: unknown
+  afterValue: unknown
+  changeType: "added" | "removed" | "changed"
 }
 
 export interface ActivityLogFilter {
@@ -392,6 +400,7 @@ export interface NotificationFeedItem {
   relatedTaskId?: string | null
   isRead: boolean
   createdAt: string
+  canQuickAct?: boolean
 }
 
 export interface TaskWithProjectSummary extends PublicTaskSummary {
@@ -466,4 +475,67 @@ export interface TeamMembersExecutionResponse {
     projects: number
     inProgressTasks: number
   }
+}
+
+export interface SlaMetrics {
+  inProgressCount: number
+  delayedCount: number
+  delayedRate: number
+  overdueOpenCount: number
+  overdueOpenRate: number
+  dueSoon7dCount: number
+  completionRatio: number
+}
+
+export interface WeeklyTeamReport {
+  weekStart: string
+  summary: {
+    totalTasks: number
+    inProgressTasks: number
+    completedTasks: number
+    delayedTasks: number
+    pendingTasks: number
+  }
+  sla: SlaMetrics
+  members: Array<{
+    memberId: string
+    memberName: string
+    role: Role
+    totalTasks: number
+    inProgressTasks: number
+    completedTasks: number
+    delayedTasks: number
+    pendingTasks: number
+    overdueOpenCount: number
+    completionRatio: number
+  }>
+  projects: Array<{
+    projectId: string
+    projectName: string
+    totalTasks: number
+    inProgressTasks: number
+    completedTasks: number
+    delayedTasks: number
+    pendingTasks: number
+    overdueOpenCount: number
+    completionRatio: number
+  }>
+}
+
+export interface TeamWeeklySnapshotItem {
+  id: string
+  weekStart: string
+  generatedBy: {
+    id: string
+    name: string
+  }
+  createdAt: string
+  summary: WeeklyTeamReport["summary"]
+  sla: SlaMetrics
+}
+
+export interface NotificationQuickActionPayload {
+  actionType: "CHANGE_STATUS" | "CHANGE_ASSIGNEE"
+  status?: TaskStatus
+  assigneeId?: string
 }

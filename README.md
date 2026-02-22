@@ -12,6 +12,9 @@ Multi-project operations dashboard built with Next.js App Router, Prisma, Postgr
 - Team members page with project assignment buckets
 - In-app notifications and personal search history (logged-in users)
 - Admin-managed search synonym dictionary (global + project scope, in `/settings`)
+- Weekly team reports with SLA metrics, snapshot history, and CSV export (`/team-reports`)
+- Activity log diff viewer (field-level before/after changes)
+- Admin notification quick actions (status/assignee update from header)
 
 ## Environment
 
@@ -57,6 +60,9 @@ docker compose up -d
 - Tasks: `/tasks`
 - Projects: `/projects`, `/projects/:id`
 - Team members: `/team-members`
+- Team reports (auth required): `/team-reports`
+- Activity log (auth required): `/activity-log`
+- Completed projects (auth required): `/completed-projects`
 - Auth: `/login`, `/signup`
 - Settings (auth required): `/settings`
 
@@ -69,8 +75,11 @@ docker compose up -d
 - Project search synonyms (admin): `/api/projects/settings/synonyms`, `/api/projects/settings/synonyms/:id`
 - Users (admin): `/api/users`, `/api/users/:id`
 - Notifications: `/api/notifications*`
+- Notification quick action (admin): `/api/notifications/:id/action`
 - Search: `/api/search*`
 - Profile settings: `/api/profile/settings`
+- Team reports: `/api/team-reports/weekly`, `/api/team-reports/weekly/snapshots`, `/api/team-reports/weekly/export`
+- Activity logs: `/api/activity-logs` (diff rows included)
 
 ## Quality checks
 

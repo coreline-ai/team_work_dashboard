@@ -5,7 +5,7 @@ import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import type { ActivityLogItem } from "@/types/domain"
+import type { ActivityDiffRow, ActivityLogItem } from "@/types/domain"
 
 interface ActivityLogResponse {
   items: ActivityLogItem[]
@@ -35,6 +35,16 @@ function getEntityHref(item: ActivityLogItem) {
   if (item.entityType === "PROJECT") return "/projects"
   if (item.entityType === "USER") return "/team-members"
   return "/"
+}
+
+function DiffTypeBadge({ type }: { type: ActivityDiffRow["changeType"] }) {
+  const className =
+    type === "added"
+      ? "bg-emerald-100 text-emerald-700"
+      : type === "removed"
+        ? "bg-rose-100 text-rose-700"
+        : "bg-amber-100 text-amber-700"
+  return <span className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${className}`}>{type}</span>
 }
 
 export default function ActivityLogPage() {
@@ -103,12 +113,12 @@ export default function ActivityLogPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Activity Log</h1>
           <p className="text-sm text-slate-500">
-            {isAdmin ? "팀 전체 변경 이력" : "내 변경 이력"}
+            {isAdmin ? "팀 전체 변경 이력(필터 가능)" : "내 변경 이력"}
           </p>
         </div>
         <div className="flex gap-2">
+          <Link href="/team-reports"><Button variant="outline">Team Reports</Button></Link>
           <Link href="/completed-projects"><Button variant="outline">Completed Projects</Button></Link>
-          <Link href="/settings"><Button variant="outline">Settings</Button></Link>
         </div>
       </div>
 
@@ -239,6 +249,41 @@ export default function ActivityLogPage() {
                                   <pre className="rounded bg-white border border-slate-200 p-2 text-[11px] overflow-auto">
                                     {JSON.stringify(item.after ?? {}, null, 2)}
                                   </pre>
+                                </div>
+                              </div>
+
+                              <div className="mt-3">
+                                <p className="text-xs font-semibold text-slate-600 mb-1">Diff</p>
+                                <div className="overflow-x-auto" data-testid="activity-diff-table">
+                                  <table className="w-full text-xs border border-slate-200 bg-white">
+                                    <thead>
+                                      <tr className="border-b border-slate-100">
+                                        <th className="py-2 px-2 text-left text-slate-500">Field</th>
+                                        <th className="py-2 px-2 text-left text-slate-500">Type</th>
+                                        <th className="py-2 px-2 text-left text-slate-500">Before</th>
+                                        <th className="py-2 px-2 text-left text-slate-500">After</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {(item.diff ?? []).map((row) => (
+                                        <tr key={`${item.id}-${row.fieldPath}`} className="border-b border-slate-50">
+                                          <td className="py-2 px-2 font-mono text-slate-700">{row.fieldPath}</td>
+                                          <td className="py-2 px-2"><DiffTypeBadge type={row.changeType} /></td>
+                                          <td className="py-2 px-2 font-mono text-slate-600 break-all">
+                                            {JSON.stringify(row.beforeValue)}
+                                          </td>
+                                          <td className="py-2 px-2 font-mono text-slate-600 break-all">
+                                            {JSON.stringify(row.afterValue)}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                      {(item.diff ?? []).length === 0 ? (
+                                        <tr>
+                                          <td colSpan={4} className="py-2 px-2 text-slate-500">변경 필드 없음</td>
+                                        </tr>
+                                      ) : null}
+                                    </tbody>
+                                  </table>
                                 </div>
                               </div>
                             </td>

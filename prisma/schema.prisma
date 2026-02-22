@@ -63,6 +63,7 @@ model User {
   searchSynonymsCreated SearchSynonym[] @relation("SearchSynonymCreator")
   searchSynonymsUpdated SearchSynonym[] @relation("SearchSynonymUpdater")
   auditLogs       AuditLog[]       @relation("AuditActor")
+  weeklySnapshots TeamWeeklySnapshot[] @relation("WeeklySnapshotGenerator")
 }
 
 model ProfileSettings {
@@ -190,4 +191,19 @@ model AuditLog {
   actor User? @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
 
   @@index([entityType, entityId, createdAt])
+}
+
+model TeamWeeklySnapshot {
+  id                 String   @id @default(cuid())
+  weekStart          DateTime
+  generatedById      String
+  summaryJson        Json
+  memberMetricsJson  Json
+  projectMetricsJson Json
+  createdAt          DateTime @default(now())
+
+  generatedBy User @relation("WeeklySnapshotGenerator", fields: [generatedById], references: [id], onDelete: Cascade)
+
+  @@unique([weekStart])
+  @@index([createdAt])
 }

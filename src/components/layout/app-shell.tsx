@@ -12,7 +12,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isAuthRoute = AUTH_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`))
 
   if (isAuthRoute) {
-    return <main className="min-h-screen flex items-center justify-center p-6">{children}</main>
+    return (
+      <main className="flex min-h-screen w-full flex-1 items-center justify-center p-6">
+        {children}
+      </main>
+    )
   }
 
   return (

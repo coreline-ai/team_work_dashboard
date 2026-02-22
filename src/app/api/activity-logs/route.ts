@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client"
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { requireUser, unauthorized } from "@/lib/api"
+import { buildActivityDiff } from "@/lib/diff"
 import { isAdmin } from "@/lib/permissions"
 import { prisma } from "@/lib/prisma"
 
@@ -88,22 +89,27 @@ export async function GET(req: Request) {
   }, {})
 
   return NextResponse.json({
-    items: items.map((item) => ({
-      id: item.id,
-      action: item.action,
-      entityType: item.entityType,
-      entityId: item.entityId,
-      actor: item.actor
-        ? {
-            id: item.actor.id,
-            name: item.actor.name,
-            role: item.actor.role,
-          }
-        : null,
-      before: safeJsonParse(item.beforeJson),
-      after: safeJsonParse(item.afterJson),
-      createdAt: item.createdAt.toISOString(),
-    })),
+    items: items.map((item) => {
+      const before = safeJsonParse(item.beforeJson)
+      const after = safeJsonParse(item.afterJson)
+      return {
+        id: item.id,
+        action: item.action,
+        entityType: item.entityType,
+        entityId: item.entityId,
+        actor: item.actor
+          ? {
+              id: item.actor.id,
+              name: item.actor.name,
+              role: item.actor.role,
+            }
+          : null,
+        before,
+        after,
+        diff: buildActivityDiff(before, after),
+        createdAt: item.createdAt.toISOString(),
+      }
+    }),
     pagination: {
       page,
       pageSize,

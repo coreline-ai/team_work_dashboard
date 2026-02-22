@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { useAdminMode } from "@/components/providers/admin-mode-provider"
 import { getRoleLabel } from "@/lib/role-label"
 import type {
+  NotificationQuickActionPayload,
   ProfileOverview,
   SearchApiResponse,
   SearchScope,
@@ -24,6 +25,14 @@ interface NotificationItem {
   body: string
   isRead: boolean
   createdAt?: string
+  relatedTaskId?: string | null
+  canQuickAct?: boolean
+}
+
+interface NotificationMeta {
+  canQuickAct: boolean
+  assignees: Array<{ id: string; name: string }>
+  statuses: TaskStatus[]
 }
 
 interface SearchHistoryItem {
@@ -73,6 +82,13 @@ export function Header({ className }: { className?: string }) {
   const [notificationsOpen, setNotificationsOpen] = React.useState(false)
   const [unreadCount, setUnreadCount] = React.useState(0)
   const [notifications, setNotifications] = React.useState<NotificationItem[]>([])
+  const [notificationMeta, setNotificationMeta] = React.useState<NotificationMeta>({
+    canQuickAct: false,
+    assignees: [],
+    statuses: ["PENDING", "IN_PROGRESS", "COMPLETED", "DELAYED"],
+  })
+  const [quickActionDrafts, setQuickActionDrafts] = React.useState<Record<string, { status: TaskStatus; assigneeId: string }>>({})
+  const [quickActionLoading, setQuickActionLoading] = React.useState<Record<string, boolean>>({})
 
   const [profileOpen, setProfileOpen] = React.useState(false)
   const [profileLoading, setProfileLoading] = React.useState(false)
@@ -92,8 +108,28 @@ export function Header({ className }: { className?: string }) {
     const res = await fetch("/api/notifications")
     if (!res.ok) return
     const payload = await res.json()
-    setNotifications(payload.notifications ?? [])
+    const items = (payload.notifications ?? []) as NotificationItem[]
+    const meta = (payload.quickActions ?? {}) as Partial<NotificationMeta>
+
+    setNotifications(items)
     setUnreadCount(payload.unreadCount ?? 0)
+    setNotificationMeta({
+      canQuickAct: Boolean(meta.canQuickAct),
+      assignees: meta.assignees ?? [],
+      statuses: meta.statuses ?? ["PENDING", "IN_PROGRESS", "COMPLETED", "DELAYED"],
+    })
+
+    setQuickActionDrafts((prev) => {
+      const next = { ...prev }
+      const firstStatus = (meta.statuses?.[0] ?? "IN_PROGRESS") as TaskStatus
+      const firstAssignee = meta.assignees?.[0]?.id ?? ""
+      for (const item of items) {
+        if (!next[item.id]) {
+          next[item.id] = { status: firstStatus, assigneeId: firstAssignee }
+        }
+      }
+      return next
+    })
   }, [isAuthenticated])
 
   const refreshSearchHistory = React.useCallback(async () => {
@@ -112,8 +148,7 @@ export function Header({ className }: { className?: string }) {
       setProfileLoading(false)
       return
     }
-    const payload = await res.json()
-    setProfileOverview(payload)
+    setProfileOverview(await res.json())
     setProfileLoading(false)
   }, [isAuthenticated])
 
@@ -140,16 +175,9 @@ export function Header({ className }: { className?: string }) {
     const onPointerDown = (event: Event) => {
       const target = event.target as Node | null
       if (!target) return
-
-      if (searchContainerRef.current && !searchContainerRef.current.contains(target)) {
-        setSearchOpen(false)
-      }
-      if (notificationContainerRef.current && !notificationContainerRef.current.contains(target)) {
-        setNotificationsOpen(false)
-      }
-      if (profileContainerRef.current && !profileContainerRef.current.contains(target)) {
-        setProfileOpen(false)
-      }
+      if (searchContainerRef.current && !searchContainerRef.current.contains(target)) setSearchOpen(false)
+      if (notificationContainerRef.current && !notificationContainerRef.current.contains(target)) setNotificationsOpen(false)
+      if (profileContainerRef.current && !profileContainerRef.current.contains(target)) setProfileOpen(false)
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
@@ -163,7 +191,6 @@ export function Header({ className }: { className?: string }) {
     document.addEventListener("pointerdown", onPointerDown, true)
     document.addEventListener("touchstart", onPointerDown, true)
     document.addEventListener("keydown", onKeyDown)
-
     return () => {
       document.removeEventListener("pointerdown", onPointerDown, true)
       document.removeEventListener("touchstart", onPointerDown, true)
@@ -172,9 +199,7 @@ export function Header({ className }: { className?: string }) {
   }, [])
 
   React.useEffect(() => {
-    if (profileOpen) {
-      refreshProfileOverview()
-    }
+    if (profileOpen) refreshProfileOverview()
   }, [profileOpen, refreshProfileOverview])
 
   React.useEffect(() => {
@@ -186,7 +211,6 @@ export function Header({ className }: { className?: string }) {
       setSearchResults(EMPTY_SEARCH_RESULTS)
       return
     }
-
     if (isComposingRef.current) return
 
     const timer = window.setTimeout(async () => {
@@ -194,7 +218,6 @@ export function Header({ className }: { className?: string }) {
       const controller = new AbortController()
       searchAbortRef.current = controller
       const requestId = ++searchRequestIdRef.current
-
       setSearchLoading(true)
       setSearchError(null)
 
@@ -206,7 +229,6 @@ export function Header({ className }: { className?: string }) {
       try {
         const res = await fetch(`${endpoint}?${params.toString()}`, { signal: controller.signal })
         if (!res.ok) throw new Error(`search failed: ${res.status}`)
-
         const payload = (await res.json()) as SearchApiResponse
         if (requestId !== searchRequestIdRef.current) return
         setSearchResults({
@@ -220,9 +242,7 @@ export function Header({ className }: { className?: string }) {
         setSearchResults(EMPTY_SEARCH_RESULTS)
         setSearchError(error instanceof Error ? error.message : "검색 중 오류가 발생했습니다.")
       } finally {
-        if (requestId === searchRequestIdRef.current) {
-          setSearchLoading(false)
-        }
+        if (requestId === searchRequestIdRef.current) setSearchLoading(false)
       }
     }, 220)
 
@@ -275,6 +295,18 @@ export function Header({ className }: { className?: string }) {
   const markAllRead = async () => {
     if (!isAuthenticated) return
     await fetch("/api/notifications/read-all", { method: "PATCH" })
+    refreshNotifications()
+  }
+
+  const runQuickAction = async (notificationId: string, payload: NotificationQuickActionPayload) => {
+    if (!isAdmin) return
+    setQuickActionLoading((prev) => ({ ...prev, [notificationId]: true }))
+    await fetch(`/api/notifications/${notificationId}/action`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+    setQuickActionLoading((prev) => ({ ...prev, [notificationId]: false }))
     refreshNotifications()
   }
 
@@ -437,6 +469,7 @@ export function Header({ className }: { className?: string }) {
 
           <div ref={notificationContainerRef} className="relative">
             <button
+              data-testid="header-notification-trigger"
               className="relative text-slate-500 hover:text-slate-800 transition-colors"
               onClick={() => {
                 setNotificationsOpen((prev) => !prev)
@@ -447,27 +480,111 @@ export function Header({ className }: { className?: string }) {
               <Bell className="h-5 w-5" />
               {unreadCount > 0 ? <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" /> : null}
             </button>
+
             {notificationsOpen ? (
               <div className="absolute right-0 top-8 w-96 rounded-md border border-slate-200 bg-white shadow-lg z-30 p-2">
                 <div className="flex items-center justify-between px-2 pb-1">
                   <span className="text-sm font-semibold">알림</span>
                   <button onClick={markAllRead} className="text-xs text-blue-600 hover:underline">전체 읽음</button>
                 </div>
-                <div className="max-h-80 overflow-y-auto space-y-1">
-                  {notifications.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => markNotificationRead(item.id)}
-                      className={cn(
-                        "w-full text-left rounded px-2 py-2 hover:bg-slate-100",
-                        item.isRead ? "opacity-70" : "bg-blue-50/50",
-                      )}
-                    >
-                      <div className="text-sm font-medium text-slate-800">{item.title}</div>
-                      <div className="text-xs text-slate-500">{item.body}</div>
-                      {item.createdAt ? <div className="mt-1 text-[10px] text-slate-400">{formatDateTime(item.createdAt)}</div> : null}
-                    </button>
-                  ))}
+                <div className="max-h-96 overflow-y-auto space-y-2">
+                  {notifications.map((item) => {
+                    const draft = quickActionDrafts[item.id]
+                    return (
+                      <div
+                        key={item.id}
+                        data-testid={`notification-item-${item.id}`}
+                        className={cn(
+                          "rounded border px-2 py-2",
+                          item.isRead ? "border-slate-200 bg-white" : "border-blue-200 bg-blue-50/40",
+                        )}
+                      >
+                        <button
+                          onClick={() => markNotificationRead(item.id)}
+                          className="w-full text-left"
+                        >
+                          <div className="text-sm font-medium text-slate-800">{item.title}</div>
+                          <div className="text-xs text-slate-500">{item.body}</div>
+                          {item.createdAt ? <div className="mt-1 text-[10px] text-slate-400">{formatDateTime(item.createdAt)}</div> : null}
+                        </button>
+
+                        {isAdmin && notificationMeta.canQuickAct && item.canQuickAct && item.relatedTaskId ? (
+                          <div className="mt-2 border-t border-slate-200 pt-2 space-y-2">
+                            <div className="flex gap-1">
+                              <select
+                                data-testid={`notification-quick-status-${item.id}`}
+                                value={draft?.status ?? "IN_PROGRESS"}
+                                onChange={(event) =>
+                                  setQuickActionDrafts((prev) => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      status: event.target.value as TaskStatus,
+                                      assigneeId: prev[item.id]?.assigneeId ?? notificationMeta.assignees[0]?.id ?? "",
+                                    },
+                                  }))
+                                }
+                                className="h-8 flex-1 rounded border border-slate-200 bg-white px-2 text-xs"
+                              >
+                                {notificationMeta.statuses.map((statusValue) => (
+                                  <option key={`${item.id}-${statusValue}`} value={statusValue}>{statusValue}</option>
+                                ))}
+                              </select>
+                              <Button
+                                data-testid={`notification-quick-status-apply-${item.id}`}
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  runQuickAction(item.id, {
+                                    actionType: "CHANGE_STATUS",
+                                    status: draft?.status ?? "IN_PROGRESS",
+                                  })
+                                }
+                                disabled={quickActionLoading[item.id]}
+                              >
+                                상태 변경
+                              </Button>
+                            </div>
+
+                            <div className="flex gap-1">
+                              <select
+                                data-testid={`notification-quick-assignee-${item.id}`}
+                                value={draft?.assigneeId ?? ""}
+                                onChange={(event) =>
+                                  setQuickActionDrafts((prev) => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      status: prev[item.id]?.status ?? "IN_PROGRESS",
+                                      assigneeId: event.target.value,
+                                    },
+                                  }))
+                                }
+                                className="h-8 flex-1 rounded border border-slate-200 bg-white px-2 text-xs"
+                              >
+                                <option value="">담당자 선택</option>
+                                {notificationMeta.assignees.map((assignee) => (
+                                  <option key={`${item.id}-${assignee.id}`} value={assignee.id}>{assignee.name}</option>
+                                ))}
+                              </select>
+                              <Button
+                                data-testid={`notification-quick-assignee-apply-${item.id}`}
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  runQuickAction(item.id, {
+                                    actionType: "CHANGE_ASSIGNEE",
+                                    assigneeId: draft?.assigneeId ?? "",
+                                  })
+                                }
+                                disabled={quickActionLoading[item.id] || !(draft?.assigneeId ?? "")}
+                              >
+                                담당자 변경
+                              </Button>
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    )
+                  })}
                   {notifications.length === 0 ? <div className="px-2 py-2 text-sm text-slate-500">새 알림이 없습니다.</div> : null}
                 </div>
               </div>
@@ -500,9 +617,8 @@ export function Header({ className }: { className?: string }) {
               >
                 <div className="flex items-center gap-2">
                   <UserCircle2 className="h-4 w-4 text-slate-500" />
-                  <h3 className="text-sm font-semibold text-slate-800">내 정보</h3>
+                  <h3 className="text-sm font-semibold text-slate-800">사용자 정보</h3>
                 </div>
-
                 {profileLoading ? <p className="mt-2 text-sm text-slate-500">불러오는 중...</p> : null}
                 {!profileLoading && profileOverview ? (
                   <div className="mt-2 space-y-3">
@@ -513,40 +629,21 @@ export function Header({ className }: { className?: string }) {
                       <p><span className="text-slate-500">상태:</span> {profileOverview.account.isActive ? "ACTIVE" : "INACTIVE"}</p>
                       <p><span className="text-slate-500">가입일:</span> {formatDateTime(profileOverview.account.createdAt)}</p>
                     </div>
-
                     <div className="rounded-md border border-slate-200 p-2 text-xs text-slate-700 space-y-1">
                       <p><span className="text-slate-500">언어:</span> {profileOverview.settings.locale}</p>
                       <p><span className="text-slate-500">타임존:</span> {profileOverview.settings.timezone}</p>
                       <p><span className="text-slate-500">시작 페이지:</span> {profileOverview.settings.defaultStartPage}</p>
                     </div>
-
                     <div className="rounded-md border border-slate-200 p-2 text-xs text-slate-700 space-y-1">
                       <p><span className="text-slate-500">미읽음 알림:</span> {profileOverview.summary.unreadNotifications}</p>
                       <p><span className="text-slate-500">최근 7일 변경:</span> {profileOverview.summary.myActivityCount7d}</p>
-                      <div>
-                        <p className="text-slate-500 mb-1">최근 변경 5건</p>
-                        <div className="space-y-1 max-h-32 overflow-y-auto">
-                          {profileOverview.summary.myRecentActions.map((item) => (
-                            <div key={item.id} className="rounded bg-slate-50 px-2 py-1">
-                              <p className="font-medium text-slate-700">{item.action}</p>
-                              <p className="text-[11px] text-slate-500">{item.entityType}:{item.entityId} · {formatDateTime(item.createdAt)}</p>
-                            </div>
-                          ))}
-                          {profileOverview.summary.myRecentActions.length === 0 ? (
-                            <p className="text-[11px] text-slate-400">최근 변경 이력이 없습니다.</p>
-                          ) : null}
-                        </div>
-                      </div>
                     </div>
-
                     <div className="flex flex-wrap gap-2">
                       <Link href="/settings"><Button size="sm" variant="outline">Settings</Button></Link>
                       <Link href="/activity-log"><Button size="sm" variant="outline">Activity Log</Button></Link>
-                      <Link href="/completed-projects"><Button size="sm" variant="outline">Completed</Button></Link>
-                      <Button
-                        size="sm"
-                        onClick={() => signOut({ callbackUrl: "/login" })}
-                      >
+                      <Link href="/completed-projects"><Button size="sm" variant="outline">Completed Projects</Button></Link>
+                      <Link href="/team-reports"><Button size="sm" variant="outline">Team Reports</Button></Link>
+                      <Button size="sm" onClick={() => signOut({ callbackUrl: "/login" })}>
                         로그아웃
                       </Button>
                     </div>

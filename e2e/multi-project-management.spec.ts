@@ -70,7 +70,9 @@ test.describe("Multi Project Management Baseline", () => {
     await expect(page.getByTestId("project-schedule-gantt")).toBeVisible()
 
     await page.getByTestId(`member-expand-${fixture.memberUserId}`).click()
-    await expect(page.getByText(fixture.memberTaskTitle)).toBeVisible()
+    await expect(
+      page.getByTestId("project-member-workloads").getByText(fixture.memberTaskTitle).first(),
+    ).toBeVisible()
 
     await page.getByTestId("schedule-tab-member").click()
     await expect(page.getByText("Forecast Completion")).toBeVisible()

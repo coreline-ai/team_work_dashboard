@@ -1,8 +1,8 @@
-import { FolderKanban, LayoutDashboard, ListTodo, Settings, ShieldCheck, Users, type LucideIcon } from "lucide-react"
+import { BarChart3, FolderKanban, LayoutDashboard, ListTodo, Settings, ShieldCheck, Users, type LucideIcon } from "lucide-react"
 import type { Role } from "@/types/domain"
 
 export interface NavItem {
-    href: "/" | "/dashboard/portfolio" | "/tasks" | "/projects" | "/team-members" | "/settings" | "/completed-projects" | "/activity-log"
+    href: "/" | "/dashboard/portfolio" | "/tasks" | "/projects" | "/team-members" | "/settings" | "/completed-projects" | "/activity-log" | "/team-reports"
     label: string
     icon: LucideIcon
     requiresAuth?: boolean
@@ -18,6 +18,7 @@ export const primaryNavigation: NavItem[] = [
 
 export const secondaryNavigation: NavItem[] = [
     { href: "/settings", label: "Settings", icon: Settings, requiresAuth: true },
+    { href: "/team-reports", label: "Team Reports", icon: BarChart3, requiresAuth: true },
     { href: "/completed-projects", label: "Completed Projects", icon: FolderKanban, requiresAuth: true },
     { href: "/activity-log", label: "Activity Log", icon: ShieldCheck, requiresAuth: true },
 ]
