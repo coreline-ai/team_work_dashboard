@@ -5,12 +5,12 @@ import { prisma } from "@/lib/prisma"
 
 export function getTaskScopeWhere(user?: Pick<User, "id" | "role"> | null): Prisma.TaskWhereInput {
   if (!user) {
-    return { deletedAt: null, project: { isArchived: false } }
+    return { deletedAt: null, project: { isArchived: false, completedAt: null } }
   }
-  if (isAdmin(user.role)) return { deletedAt: null, project: { isArchived: false } }
+  if (isAdmin(user.role)) return { deletedAt: null, project: { isArchived: false, completedAt: null } }
   return {
     deletedAt: null,
-    project: { isArchived: false },
+    project: { isArchived: false, completedAt: null },
     OR: [{ assigneeId: user.id }, { createdById: user.id }],
   }
 }

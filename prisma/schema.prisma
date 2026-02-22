@@ -29,6 +29,10 @@ enum NotificationType {
   ASSIGNED
   STATUS_CHANGED
   DUE_SOON
+  TASK_CREATED
+  TASK_UPDATED
+  TASK_DELETED
+  ASSIGNEE_CHANGED
 }
 
 enum SearchScope {
@@ -53,6 +57,7 @@ model User {
   tasksCreated    Task[]           @relation("TaskCreator")
   tasksUpdated    Task[]           @relation("TaskUpdater")
   projectsCreated Project[]        @relation("ProjectCreator")
+  projectsCompleted Project[]      @relation("ProjectCompleter")
   notifications   Notification[]
   searchHistory   SearchHistory[]
   searchSynonymsCreated SearchSynonym[] @relation("SearchSynonymCreator")
@@ -78,13 +83,19 @@ model Project {
   name        String
   description String?
   isArchived  Boolean  @default(false)
+  completedAt DateTime?
+  completedById String?
+  completionNote String?
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   createdBy User   @relation("ProjectCreator", fields: [createdById], references: [id])
+  completedBy User? @relation("ProjectCompleter", fields: [completedById], references: [id], onDelete: SetNull)
   tasks     Task[]
   searchSynonyms SearchSynonym[]
+
+  @@index([completedAt, isArchived])
 }
 
 model Task {

@@ -14,6 +14,36 @@ export async function createNotification(input: {
   })
 }
 
+export async function createBroadcastNotification(input: {
+  type: NotificationType
+  title: string
+  body: string
+  relatedTaskId?: string
+  excludeUserIds?: string[]
+}) {
+  const activeUsers = await prisma.user.findMany({
+    where: { isActive: true },
+    select: { id: true },
+  })
+
+  const excluded = new Set(input.excludeUserIds ?? [])
+  const rows = activeUsers
+    .filter((user) => !excluded.has(user.id))
+    .map((user) => ({
+      userId: user.id,
+      type: input.type,
+      title: input.title,
+      body: input.body,
+      relatedTaskId: input.relatedTaskId ?? null,
+    }))
+
+  if (rows.length === 0) return { count: 0 }
+
+  return prisma.notification.createMany({
+    data: rows,
+  })
+}
+
 export async function createDueSoonNotifications(userId: string) {
   const now = new Date()
   const dueDate = endOfDay(addDays(now, 2))
@@ -24,6 +54,10 @@ export async function createDueSoonNotifications(userId: string) {
       deletedAt: null,
       status: { not: TaskStatus.COMPLETED },
       endDate: { gte: now, lte: dueDate },
+      project: {
+        isArchived: false,
+        completedAt: null,
+      },
     },
     select: { id: true, title: true, endDate: true },
   })

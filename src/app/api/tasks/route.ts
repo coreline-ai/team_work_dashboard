@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { TaskPriority, TaskStatus } from "@prisma/client"
 import { z } from "zod"
 import { requireUser, unauthorized } from "@/lib/api"
-import { createNotification } from "@/lib/notifications"
+import { createBroadcastNotification } from "@/lib/notifications"
 import { isAdmin } from "@/lib/permissions"
 import { prisma } from "@/lib/prisma"
 
@@ -49,27 +49,27 @@ export async function GET(req: Request) {
 
   const where: {
     deletedAt: null
-    project?: { isArchived: boolean }
+    project?: { isArchived: boolean; completedAt: null }
     projectId?: string
     status?: TaskStatus
     phase?: { contains: string; mode: "insensitive" }
-    OR?: Array<{ title: { contains: string; mode: "insensitive" } } | { phase: { contains: string; mode: "insensitive" } } | { assignee: { name: { contains: string; mode: "insensitive" } } }>
+    OR?: Array<
+      { title: { contains: string; mode: "insensitive" } } |
+      { phase: { contains: string; mode: "insensitive" } } |
+      { assignee: { name: { contains: string; mode: "insensitive" } } }
+    >
     AND?: Array<{ OR: Array<{ assigneeId: string } | { createdById: string }> }>
     assigneeId?: string
   } = {
     deletedAt: null,
-    project: { isArchived: false },
+    project: { isArchived: false, completedAt: null },
   }
 
-  if (projectId) {
-    where.projectId = projectId
-  }
+  if (projectId) where.projectId = projectId
   if (status && Object.values(TaskStatus).includes(status as TaskStatus)) {
     where.status = status as TaskStatus
   }
-  if (phase) {
-    where.phase = { contains: phase, mode: "insensitive" }
-  }
+  if (phase) where.phase = { contains: phase, mode: "insensitive" }
   if (q) {
     where.OR = [
       { title: { contains: q, mode: "insensitive" } },
@@ -80,9 +80,7 @@ export async function GET(req: Request) {
 
   if (!isAdmin(currentUser.role)) {
     where.AND = [{ OR: [{ assigneeId: currentUser.id }, { createdById: currentUser.id }] }]
-    if (assigneeFilter === "me" || !assigneeFilter) {
-      where.assigneeId = currentUser.id
-    }
+    if (assigneeFilter === "me" || !assigneeFilter) where.assigneeId = currentUser.id
   } else if (assigneeFilter === "me") {
     where.assigneeId = currentUser.id
   }
@@ -134,20 +132,20 @@ export async function POST(req: Request) {
   const projectId = parsed.data.projectId
     ? (
         await prisma.project.findFirst({
-          where: { id: parsed.data.projectId, isArchived: false },
+          where: { id: parsed.data.projectId, isArchived: false, completedAt: null },
           select: { id: true },
         })
       )?.id
     : (
         await prisma.project.findFirst({
-          where: { isArchived: false },
+          where: { isArchived: false, completedAt: null },
           select: { id: true },
           orderBy: { createdAt: "asc" },
         })
       )?.id
 
   if (!projectId) {
-    return NextResponse.json({ message: "연결 가능한 프로젝트가 없습니다." }, { status: 400 })
+    return NextResponse.json({ message: "연결 가능한 활성 프로젝트가 없습니다." }, { status: 400 })
   }
 
   if (parsed.data.parentId) {
@@ -159,7 +157,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "부모 업무를 찾을 수 없습니다." }, { status: 400 })
     }
     if (parent.projectId !== projectId) {
-      return NextResponse.json({ message: "부모 업무와 동일 프로젝트에 생성해야 합니다." }, { status: 400 })
+      return NextResponse.json({ message: "부모 업무와 동일 프로젝트에서 생성해야 합니다." }, { status: 400 })
     }
   }
 
@@ -181,18 +179,16 @@ export async function POST(req: Request) {
     },
     include: {
       assignee: { select: { id: true, name: true, avatarUrl: true } },
+      project: { select: { id: true, name: true } },
     },
   })
 
-  if (created.assigneeId !== currentUser.id) {
-    await createNotification({
-      userId: created.assigneeId,
-      type: "ASSIGNED",
-      title: "새 업무가 배정되었습니다.",
-      body: `${created.title} 업무가 배정되었습니다.`,
-      relatedTaskId: created.id,
-    })
-  }
+  await createBroadcastNotification({
+    type: "TASK_CREATED",
+    title: "새 업무가 생성되었습니다.",
+    body: `${currentUser.name}님이 [${created.project.name}] ${created.title} 업무를 생성했습니다. 담당자: ${created.assignee.name}`,
+    relatedTaskId: created.id,
+  })
 
   await prisma.auditLog.create({
     data: {
@@ -202,8 +198,14 @@ export async function POST(req: Request) {
       entityId: created.id,
       afterJson: JSON.stringify({
         title: created.title,
+        projectId: created.projectId,
         assigneeId: created.assigneeId,
+        phase: created.phase,
+        priority: created.priority,
+        progress: created.progress,
         status: created.status,
+        startDate: created.startDate,
+        endDate: created.endDate,
       }),
     },
   })

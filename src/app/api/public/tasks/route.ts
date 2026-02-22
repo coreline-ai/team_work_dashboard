@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { TaskStatus } from "@prisma/client"
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 
 function computeDepthById(
@@ -25,20 +26,9 @@ export async function GET(req: Request) {
   const phase = searchParams.get("phase")
   const q = searchParams.get("q")
 
-  const where: {
-    deletedAt: null
-    project?: { isArchived: boolean }
-    projectId?: string
-    status?: TaskStatus
-    phase?: { contains: string; mode: "insensitive" }
-    OR?: Array<
-      { title: { contains: string; mode: "insensitive" } } |
-      { phase: { contains: string; mode: "insensitive" } } |
-      { assignee: { name: { contains: string; mode: "insensitive" } } }
-    >
-  } = {
+  const where: Prisma.TaskWhereInput = {
     deletedAt: null,
-    project: { isArchived: false },
+    project: { isArchived: false, completedAt: null },
   }
 
   if (projectId) {

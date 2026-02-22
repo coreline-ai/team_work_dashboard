@@ -207,7 +207,7 @@ export function buildTaskSearchWhere(params: {
 
   return {
     deletedAt: null,
-    project: { isArchived: false },
+    project: { isArchived: false, completedAt: null },
     ...(and.length > 0 ? { AND: and } : {}),
   }
 }
@@ -215,6 +215,7 @@ export function buildTaskSearchWhere(params: {
 export function buildProjectSearchWhere(terms: string[]): Prisma.ProjectWhereInput {
   return {
     isArchived: false,
+    completedAt: null,
     ...(terms.length > 0
       ? {
           OR: terms.flatMap((term) => buildProjectKeywordClauses(term)),

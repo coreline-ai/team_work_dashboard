@@ -1,7 +1,14 @@
 export type Role = "ADMIN" | "MEMBER"
 export type TaskStatus = "COMPLETED" | "IN_PROGRESS" | "PENDING" | "DELAYED"
 export type TaskPriority = "HIGH" | "MEDIUM" | "LOW"
-export type NotificationType = "ASSIGNED" | "STATUS_CHANGED" | "DUE_SOON"
+export type NotificationType =
+  | "ASSIGNED"
+  | "STATUS_CHANGED"
+  | "DUE_SOON"
+  | "TASK_CREATED"
+  | "TASK_UPDATED"
+  | "TASK_DELETED"
+  | "ASSIGNEE_CHANGED"
 export type SearchScope = "TASK" | "PROJECT" | "MEMBER"
 export type SearchScopeOption = "ALL" | SearchScope
 export type ProjectHealth = "ON_TRACK" | "AT_RISK" | "CRITICAL"
@@ -136,6 +143,9 @@ export interface PublicProjectSummary {
   id: string
   name: string
   description?: string | null
+  completedAt?: string | null
+  completedById?: string | null
+  completionNote?: string | null
   totalTasks: number
   inProgressTasks: number
   completedTasks: number
@@ -300,6 +310,90 @@ export interface SearchSynonymItem {
   updatedAt: string
 }
 
+export interface ProjectCompletionSummary {
+  id: string
+  name: string
+  description?: string | null
+  completedAt: string
+  completedBy: {
+    id: string
+    name: string
+  } | null
+  completionNote?: string | null
+  totalTasks: number
+  completedTasks: number
+  overallProgress: number
+}
+
+export interface ProjectCompletionHistoryItem {
+  id: string
+  projectId: string
+  action: "PROJECT_COMPLETE" | "PROJECT_REOPEN"
+  actor: {
+    id: string
+    name: string
+  } | null
+  createdAt: string
+  before?: Record<string, unknown> | null
+  after?: Record<string, unknown> | null
+}
+
+export interface ActivityLogItem {
+  id: string
+  action: string
+  entityType: string
+  entityId: string
+  actor: {
+    id: string
+    name: string
+    role: Role
+  } | null
+  before?: Record<string, unknown> | null
+  after?: Record<string, unknown> | null
+  createdAt: string
+}
+
+export interface ActivityLogFilter {
+  actorUserId?: string
+  entityType?: string
+  action?: string
+  from?: string
+  to?: string
+  page?: number
+  pageSize?: number
+}
+
+export interface ProfileOverview {
+  account: {
+    id: string
+    name: string
+    email: string
+    role: Role
+    isActive: boolean
+    createdAt: string
+  }
+  settings: {
+    locale: string
+    timezone: string
+    defaultStartPage: string
+  }
+  summary: {
+    unreadNotifications: number
+    myActivityCount7d: number
+    myRecentActions: ActivityLogItem[]
+  }
+}
+
+export interface NotificationFeedItem {
+  id: string
+  type: NotificationType
+  title: string
+  body: string
+  relatedTaskId?: string | null
+  isRead: boolean
+  createdAt: string
+}
+
 export interface TaskWithProjectSummary extends PublicTaskSummary {
   project: {
     id: string
@@ -329,12 +423,47 @@ export interface PublicTeamMember {
   role: Role
   category: string
   taskCount: number
-  tasks: Array<{
-    id: string
-    title: string
-    phase: string
-    projectId?: string
-    projectName?: string
-  }>
+  inProgressCount: number
+  topTaskTitles: string[]
   projectBuckets?: MemberProjectBucket[]
+}
+
+export interface MemberExecutionTask {
+  id: string
+  title: string
+  phase: string
+  projectId: string
+  projectName: string
+  status: TaskStatus
+  priority: TaskPriority
+  startDate: string
+  endDate: string
+  progress: number
+}
+
+export interface MemberExecutionProjectBucket {
+  projectId: string
+  projectName: string
+  inProgressCount: number
+  delayedCount: number
+  pendingCount: number
+  completedCount: number
+  tasks: MemberExecutionTask[]
+}
+
+export interface MemberExecutionView {
+  memberId: string
+  memberName: string
+  role: Role
+  totalInProgress: number
+  projects: MemberExecutionProjectBucket[]
+}
+
+export interface TeamMembersExecutionResponse {
+  members: MemberExecutionView[]
+  summary: {
+    members: number
+    projects: number
+    inProgressTasks: number
+  }
 }

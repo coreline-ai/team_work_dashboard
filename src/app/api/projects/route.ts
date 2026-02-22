@@ -16,15 +16,27 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url)
   const includeArchived = searchParams.get("includeArchived") === "true"
+  const includeCompleted = searchParams.get("includeCompleted") === "true"
 
   const projects = await prisma.project.findMany({
-    where: includeArchived ? {} : { isArchived: false },
+    where: {
+      ...(includeArchived ? {} : { isArchived: false }),
+      ...(includeCompleted ? {} : { completedAt: null }),
+    },
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
       name: true,
       description: true,
       isArchived: true,
+      completedAt: true,
+      completionNote: true,
+      completedBy: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
       createdAt: true,
       updatedAt: true,
       tasks: {

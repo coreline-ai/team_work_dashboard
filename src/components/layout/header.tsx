@@ -4,12 +4,18 @@ import * as React from "react"
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
-import { Bell, LogOut, Search } from "lucide-react"
+import { Bell, Search, UserCircle2 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { useAdminMode } from "@/components/providers/admin-mode-provider"
 import { getRoleLabel } from "@/lib/role-label"
-import type { SearchApiResponse, SearchScope, SearchScopeOption, TaskStatus } from "@/types/domain"
+import type {
+  ProfileOverview,
+  SearchApiResponse,
+  SearchScope,
+  SearchScopeOption,
+  TaskStatus,
+} from "@/types/domain"
 import { cn } from "@/lib/utils"
 
 interface NotificationItem {
@@ -17,6 +23,7 @@ interface NotificationItem {
   title: string
   body: string
   isRead: boolean
+  createdAt?: string
 }
 
 interface SearchHistoryItem {
@@ -37,6 +44,10 @@ function getResultCount(results: SearchResults) {
   return results.tasks.length + results.projects.length + results.members.length
 }
 
+function formatDateTime(value: string) {
+  return new Date(value).toLocaleString("ko-KR")
+}
+
 export function Header({ className }: { className?: string }) {
   const router = useRouter()
   const pathname = usePathname()
@@ -45,6 +56,7 @@ export function Header({ className }: { className?: string }) {
 
   const searchContainerRef = React.useRef<HTMLDivElement>(null)
   const notificationContainerRef = React.useRef<HTMLDivElement>(null)
+  const profileContainerRef = React.useRef<HTMLDivElement>(null)
   const searchAbortRef = React.useRef<AbortController | null>(null)
   const searchRequestIdRef = React.useRef(0)
   const isComposingRef = React.useRef(false)
@@ -61,6 +73,11 @@ export function Header({ className }: { className?: string }) {
   const [notificationsOpen, setNotificationsOpen] = React.useState(false)
   const [unreadCount, setUnreadCount] = React.useState(0)
   const [notifications, setNotifications] = React.useState<NotificationItem[]>([])
+
+  const [profileOpen, setProfileOpen] = React.useState(false)
+  const [profileLoading, setProfileLoading] = React.useState(false)
+  const [profileOverview, setProfileOverview] = React.useState<ProfileOverview | null>(null)
+
   const [searchResults, setSearchResults] = React.useState<SearchResults>(EMPTY_SEARCH_RESULTS)
   const [history, setHistory] = React.useState<SearchHistoryItem[]>([])
 
@@ -87,11 +104,25 @@ export function Header({ className }: { className?: string }) {
     setHistory(payload.items ?? [])
   }, [isAuthenticated])
 
+  const refreshProfileOverview = React.useCallback(async () => {
+    if (!isAuthenticated) return
+    setProfileLoading(true)
+    const res = await fetch("/api/profile/overview")
+    if (!res.ok) {
+      setProfileLoading(false)
+      return
+    }
+    const payload = await res.json()
+    setProfileOverview(payload)
+    setProfileLoading(false)
+  }, [isAuthenticated])
+
   React.useEffect(() => {
     if (!isAuthenticated) {
       setNotifications([])
       setUnreadCount(0)
       setHistory([])
+      setProfileOverview(null)
       setAdminModeEnabled(false)
       return
     }
@@ -102,6 +133,7 @@ export function Header({ className }: { className?: string }) {
   React.useEffect(() => {
     setSearchOpen(false)
     setNotificationsOpen(false)
+    setProfileOpen(false)
   }, [pathname])
 
   React.useEffect(() => {
@@ -112,9 +144,11 @@ export function Header({ className }: { className?: string }) {
       if (searchContainerRef.current && !searchContainerRef.current.contains(target)) {
         setSearchOpen(false)
       }
-
       if (notificationContainerRef.current && !notificationContainerRef.current.contains(target)) {
         setNotificationsOpen(false)
+      }
+      if (profileContainerRef.current && !profileContainerRef.current.contains(target)) {
+        setProfileOpen(false)
       }
     }
 
@@ -122,6 +156,7 @@ export function Header({ className }: { className?: string }) {
       if (event.key === "Escape") {
         setSearchOpen(false)
         setNotificationsOpen(false)
+        setProfileOpen(false)
       }
     }
 
@@ -135,6 +170,12 @@ export function Header({ className }: { className?: string }) {
       document.removeEventListener("keydown", onKeyDown)
     }
   }, [])
+
+  React.useEffect(() => {
+    if (profileOpen) {
+      refreshProfileOverview()
+    }
+  }, [profileOpen, refreshProfileOverview])
 
   React.useEffect(() => {
     const query = searchQuery.trim()
@@ -255,10 +296,12 @@ export function Header({ className }: { className?: string }) {
                 setSearchQuery(event.target.value)
                 setSearchOpen(true)
                 setNotificationsOpen(false)
+                setProfileOpen(false)
               }}
               onFocus={() => {
                 setSearchOpen(true)
                 setNotificationsOpen(false)
+                setProfileOpen(false)
               }}
               onCompositionStart={() => {
                 isComposingRef.current = true
@@ -391,19 +434,21 @@ export function Header({ className }: { className?: string }) {
               {adminModeEnabled ? "관리 모드 ON" : "관리 모드 OFF"}
             </Button>
           ) : null}
+
           <div ref={notificationContainerRef} className="relative">
             <button
               className="relative text-slate-500 hover:text-slate-800 transition-colors"
               onClick={() => {
                 setNotificationsOpen((prev) => !prev)
                 setSearchOpen(false)
+                setProfileOpen(false)
               }}
             >
               <Bell className="h-5 w-5" />
               {unreadCount > 0 ? <span className="absolute top-0 right-0 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" /> : null}
             </button>
             {notificationsOpen ? (
-              <div className="absolute right-0 top-8 w-80 rounded-md border border-slate-200 bg-white shadow-lg z-30 p-2">
+              <div className="absolute right-0 top-8 w-96 rounded-md border border-slate-200 bg-white shadow-lg z-30 p-2">
                 <div className="flex items-center justify-between px-2 pb-1">
                   <span className="text-sm font-semibold">알림</span>
                   <button onClick={markAllRead} className="text-xs text-blue-600 hover:underline">전체 읽음</button>
@@ -420,6 +465,7 @@ export function Header({ className }: { className?: string }) {
                     >
                       <div className="text-sm font-medium text-slate-800">{item.title}</div>
                       <div className="text-xs text-slate-500">{item.body}</div>
+                      {item.createdAt ? <div className="mt-1 text-[10px] text-slate-400">{formatDateTime(item.createdAt)}</div> : null}
                     </button>
                   ))}
                   {notifications.length === 0 ? <div className="px-2 py-2 text-sm text-slate-500">새 알림이 없습니다.</div> : null}
@@ -428,22 +474,86 @@ export function Header({ className }: { className?: string }) {
             ) : null}
           </div>
 
-          <div className="flex items-center gap-3 border-l pl-4 border-slate-200">
-            <div className="hidden sm:flex flex-col items-end">
-              <span className="text-sm font-semibold text-slate-800">{session?.user?.name ?? "Unknown"}</span>
-              <span className="text-xs font-medium text-slate-500">{getRoleLabel(session?.user?.role)}</span>
-            </div>
-            <Avatar className="h-9 w-9 border border-slate-200 shadow-sm">
-              <AvatarFallback>{initials}</AvatarFallback>
-            </Avatar>
-            <Button
-              size="icon"
-              variant="ghost"
-              title="로그아웃"
-              onClick={() => signOut({ callbackUrl: "/login" })}
+          <div ref={profileContainerRef} className="relative">
+            <button
+              data-testid="header-profile-trigger"
+              className="flex items-center gap-3 border-l pl-4 border-slate-200"
+              onClick={() => {
+                setProfileOpen((prev) => !prev)
+                setSearchOpen(false)
+                setNotificationsOpen(false)
+              }}
             >
-              <LogOut className="h-4 w-4" />
-            </Button>
+              <div className="hidden sm:flex flex-col items-end">
+                <span className="text-sm font-semibold text-slate-800">{session?.user?.name ?? "Unknown"}</span>
+                <span className="text-xs font-medium text-slate-500">{getRoleLabel(session?.user?.role)}</span>
+              </div>
+              <Avatar className="h-9 w-9 border border-slate-200 shadow-sm">
+                <AvatarFallback>{initials}</AvatarFallback>
+              </Avatar>
+            </button>
+
+            {profileOpen ? (
+              <div
+                data-testid="header-profile-popover"
+                className="absolute right-0 top-12 w-[min(100vw-2rem,24rem)] rounded-md border border-slate-200 bg-white shadow-lg z-30 p-3"
+              >
+                <div className="flex items-center gap-2">
+                  <UserCircle2 className="h-4 w-4 text-slate-500" />
+                  <h3 className="text-sm font-semibold text-slate-800">내 정보</h3>
+                </div>
+
+                {profileLoading ? <p className="mt-2 text-sm text-slate-500">불러오는 중...</p> : null}
+                {!profileLoading && profileOverview ? (
+                  <div className="mt-2 space-y-3">
+                    <div className="rounded-md border border-slate-200 p-2 text-xs text-slate-700 space-y-1">
+                      <p><span className="text-slate-500">이름:</span> {profileOverview.account.name}</p>
+                      <p><span className="text-slate-500">이메일:</span> {profileOverview.account.email}</p>
+                      <p><span className="text-slate-500">역할:</span> {getRoleLabel(profileOverview.account.role)}</p>
+                      <p><span className="text-slate-500">상태:</span> {profileOverview.account.isActive ? "ACTIVE" : "INACTIVE"}</p>
+                      <p><span className="text-slate-500">가입일:</span> {formatDateTime(profileOverview.account.createdAt)}</p>
+                    </div>
+
+                    <div className="rounded-md border border-slate-200 p-2 text-xs text-slate-700 space-y-1">
+                      <p><span className="text-slate-500">언어:</span> {profileOverview.settings.locale}</p>
+                      <p><span className="text-slate-500">타임존:</span> {profileOverview.settings.timezone}</p>
+                      <p><span className="text-slate-500">시작 페이지:</span> {profileOverview.settings.defaultStartPage}</p>
+                    </div>
+
+                    <div className="rounded-md border border-slate-200 p-2 text-xs text-slate-700 space-y-1">
+                      <p><span className="text-slate-500">미읽음 알림:</span> {profileOverview.summary.unreadNotifications}</p>
+                      <p><span className="text-slate-500">최근 7일 변경:</span> {profileOverview.summary.myActivityCount7d}</p>
+                      <div>
+                        <p className="text-slate-500 mb-1">최근 변경 5건</p>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {profileOverview.summary.myRecentActions.map((item) => (
+                            <div key={item.id} className="rounded bg-slate-50 px-2 py-1">
+                              <p className="font-medium text-slate-700">{item.action}</p>
+                              <p className="text-[11px] text-slate-500">{item.entityType}:{item.entityId} · {formatDateTime(item.createdAt)}</p>
+                            </div>
+                          ))}
+                          {profileOverview.summary.myRecentActions.length === 0 ? (
+                            <p className="text-[11px] text-slate-400">최근 변경 이력이 없습니다.</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Link href="/settings"><Button size="sm" variant="outline">Settings</Button></Link>
+                      <Link href="/activity-log"><Button size="sm" variant="outline">Activity Log</Button></Link>
+                      <Link href="/completed-projects"><Button size="sm" variant="outline">Completed</Button></Link>
+                      <Button
+                        size="sm"
+                        onClick={() => signOut({ callbackUrl: "/login" })}
+                      >
+                        로그아웃
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         </div>
       ) : (

@@ -15,6 +15,7 @@ interface AdminProjectItem {
   name: string
   description?: string | null
   isArchived: boolean
+  completedAt?: string | null
   taskCount: number
 }
 
@@ -51,6 +52,9 @@ export default function ProjectsPage() {
   const [editName, setEditName] = React.useState("")
   const [editDescription, setEditDescription] = React.useState("")
   const [editArchived, setEditArchived] = React.useState(false)
+  const [completionNote, setCompletionNote] = React.useState("")
+  const [completeDialogOpen, setCompleteDialogOpen] = React.useState(false)
+  const [completing, setCompleting] = React.useState(false)
   const [adminMessage, setAdminMessage] = React.useState("")
   const [adminLoading, setAdminLoading] = React.useState(false)
 
@@ -185,7 +189,32 @@ export default function ProjectsPage() {
     await Promise.all([fetchProjects(), fetchAdminProjects(), fetchOverview(selectedProjectId)])
   }
 
+  const onCompleteProject = async () => {
+    if (!showAdminControls || !adminProjectId) return
+
+    setCompleting(true)
+    setAdminMessage("")
+    const res = await fetch(`/api/projects/${adminProjectId}/complete`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note: completionNote.trim() || undefined }),
+    })
+    setCompleting(false)
+
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null)
+      setAdminMessage(payload?.message ?? "프로젝트 완료 처리에 실패했습니다.")
+      return
+    }
+
+    setCompletionNote("")
+    setCompleteDialogOpen(false)
+    setAdminMessage("프로젝트가 완료 처리되었습니다.")
+    await Promise.all([fetchProjects(), fetchAdminProjects(), fetchOverview(selectedProjectId)])
+  }
+
   const selectedSummary = projects.find((project) => project.id === selectedProjectId)
+  const selectedAdminProject = adminProjects.find((project) => project.id === adminProjectId)
   const activeRisks = riskTab === "delayed" ? overview?.risks.delayed ?? [] : overview?.risks.dueSoon ?? []
 
   return (
@@ -445,6 +474,14 @@ export default function ProjectsPage() {
               </div>
               <div className="flex gap-2">
                 <Button onClick={onUpdateProject} disabled={adminLoading || !adminProjectId}>저장</Button>
+                <Button
+                  data-testid="projects-admin-complete-open"
+                  variant="outline"
+                  onClick={() => setCompleteDialogOpen(true)}
+                  disabled={adminLoading || !adminProjectId || Boolean(selectedAdminProject?.isArchived)}
+                >
+                  완료 처리
+                </Button>
                 <Link href="/settings#project-search-synonyms">
                   <Button variant="outline" disabled={adminLoading}>검색 사전 설정</Button>
                 </Link>
@@ -457,6 +494,44 @@ export default function ProjectsPage() {
 
       {selectedSummary ? (
         <div className="text-xs text-slate-500">선택 프로젝트: {selectedSummary.name}</div>
+      ) : null}
+
+      {completeDialogOpen ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/35 px-4">
+          <div className="w-full max-w-lg rounded-lg border border-slate-200 bg-white p-4 shadow-xl">
+            <h3 className="text-base font-semibold text-slate-900">프로젝트 완료 처리</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              완료 처리된 프로젝트는 기본 프로젝트 목록에서 숨겨지고 `Completed Projects`에서 관리됩니다.
+            </p>
+            <textarea
+              data-testid="projects-admin-complete-note"
+              value={completionNote}
+              onChange={(event) => setCompletionNote(event.target.value)}
+              rows={4}
+              placeholder="완료 메모(선택)"
+              className="mt-3 w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCompleteDialogOpen(false)
+                  setCompletionNote("")
+                }}
+                disabled={completing}
+              >
+                취소
+              </Button>
+              <Button
+                data-testid="projects-admin-complete-confirm"
+                onClick={onCompleteProject}
+                disabled={completing || !adminProjectId}
+              >
+                {completing ? "처리 중..." : "완료 처리"}
+              </Button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   )

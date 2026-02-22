@@ -1,6 +1,8 @@
 ﻿import { TaskStatus } from "@prisma/client"
 import { getRecentActivity, getStatusDistribution, getWeeklyMetrics } from "@/lib/dashboard"
 import type {
+  ProjectCompletionHistoryItem,
+  ProjectCompletionSummary,
   PortfolioDashboardOverview,
   ProjectHealth,
   ProjectMemberTaskDetail,
@@ -137,10 +139,14 @@ function buildLane(id: string, label: string, laneType: "PHASE" | "MEMBER", task
   }
 }
 
-export async function getProjectSummaries(): Promise<PublicProjectSummary[]> {
+export async function getProjectSummaries(options?: { includeCompleted?: boolean }): Promise<PublicProjectSummary[]> {
   const now = new Date()
+  const includeCompleted = options?.includeCompleted === true
   const projects = await prisma.project.findMany({
-    where: { isArchived: false },
+    where: {
+      isArchived: false,
+      ...(includeCompleted ? {} : { completedAt: null }),
+    },
     orderBy: { createdAt: "asc" },
     include: {
       tasks: {
@@ -162,6 +168,9 @@ export async function getProjectSummaries(): Promise<PublicProjectSummary[]> {
       id: project.id,
       name: project.name,
       description: project.description,
+      completedAt: project.completedAt?.toISOString() ?? null,
+      completedById: project.completedById ?? null,
+      completionNote: project.completionNote ?? null,
       ...kpi,
       health,
     }
@@ -172,7 +181,7 @@ export async function getPortfolioOverview(): Promise<PortfolioDashboardOverview
   const [kpi, weekly, statusDistribution, recentActivity, projects] = await Promise.all([
     (async () => {
       const tasks = await prisma.task.findMany({
-        where: { deletedAt: null, project: { isArchived: false } },
+        where: { deletedAt: null, project: { isArchived: false, completedAt: null } },
         select: { status: true, progress: true, endDate: true },
       })
       return buildKpi(tasks)
@@ -206,6 +215,7 @@ export async function getProjectOverview(projectId: string): Promise<PublicProje
     where: {
       id: projectId,
       isArchived: false,
+      completedAt: null,
     },
     select: {
       id: true,
@@ -434,5 +444,86 @@ export async function getProjectOverview(projectId: string): Promise<PublicProje
       memberLanes,
     },
     health,
+  }
+}
+
+export async function getCompletedProjectManagementData(): Promise<{
+  projects: ProjectCompletionSummary[]
+  history: ProjectCompletionHistoryItem[]
+}> {
+  const projects = await prisma.project.findMany({
+    where: {
+      isArchived: false,
+      completedAt: { not: null },
+    },
+    orderBy: { completedAt: "desc" },
+    include: {
+      completedBy: {
+        select: { id: true, name: true },
+      },
+      tasks: {
+        where: { deletedAt: null },
+        select: {
+          status: true,
+          progress: true,
+        },
+      },
+    },
+  })
+
+  const projectIds = projects.map((project) => project.id)
+  const rawHistory = projectIds.length
+    ? await prisma.auditLog.findMany({
+        where: {
+          entityType: "PROJECT",
+          entityId: { in: projectIds },
+          action: { in: ["PROJECT_COMPLETE", "PROJECT_REOPEN"] },
+        },
+        orderBy: { createdAt: "desc" },
+        include: {
+          actor: {
+            select: { id: true, name: true },
+          },
+        },
+      })
+    : []
+
+  const summaries: ProjectCompletionSummary[] = projects.map((project) => {
+    const totalTasks = project.tasks.length
+    const completedTasks = project.tasks.filter((task) => task.status === TaskStatus.COMPLETED).length
+    const overallProgress =
+      totalTasks === 0 ? 0 : Math.round(project.tasks.reduce((sum, task) => sum + task.progress, 0) / totalTasks)
+
+    return {
+      id: project.id,
+      name: project.name,
+      description: project.description,
+      completedAt: project.completedAt?.toISOString() ?? new Date().toISOString(),
+      completedBy: project.completedBy ? { id: project.completedBy.id, name: project.completedBy.name } : null,
+      completionNote: project.completionNote,
+      totalTasks,
+      completedTasks,
+      overallProgress,
+    }
+  })
+
+  const history: ProjectCompletionHistoryItem[] = rawHistory.map((item) => ({
+    id: item.id,
+    projectId: item.entityId,
+    action: item.action as "PROJECT_COMPLETE" | "PROJECT_REOPEN",
+    actor: item.actor ? { id: item.actor.id, name: item.actor.name } : null,
+    createdAt: item.createdAt.toISOString(),
+    before: item.beforeJson ? safeJsonParse(item.beforeJson) : null,
+    after: item.afterJson ? safeJsonParse(item.afterJson) : null,
+  }))
+
+  return { projects: summaries, history }
+}
+
+function safeJsonParse(value: string): Record<string, unknown> | null {
+  try {
+    return JSON.parse(value) as Record<string, unknown>
+  } catch {
+    return null
   }
 }
