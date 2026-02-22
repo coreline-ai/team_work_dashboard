@@ -38,7 +38,9 @@ Coreline은 멀티 프로젝트 운영을 위한 협업 대시보드입니다.
 
 ## 화면 캡처
 
-아래 이미지는 현재 로컬 실행 화면 기준 캡처입니다.
+아래 이미지는 현재 로컬 프로젝트(더미 데이터 시드 적용) 기준으로 다시 캡처한 화면입니다.  
+캡처 기준일: `2026-02-22`  
+보호 화면(`Team Reports`, `Activity Log`, `Completed Projects`, `Settings`)은 관리자 로그인 상태에서 캡처했습니다.
 
 이미지를 클릭하거나 `원본 보기` 링크로 원본 파일을 열 수 있습니다.
 
@@ -49,6 +51,10 @@ Coreline은 멀티 프로젝트 운영을 위한 협업 대시보드입니다.
 | 태스크 | <a href="docs/images/screenshots/tasks.png"><img src="docs/images/screenshots/tasks.png" alt="태스크 화면" width="460" /></a> | [원본 보기](docs/images/screenshots/tasks.png) |
 | 프로젝트 | <a href="docs/images/screenshots/projects.png"><img src="docs/images/screenshots/projects.png" alt="프로젝트 화면" width="460" /></a> | [원본 보기](docs/images/screenshots/projects.png) |
 | 팀 멤버 | <a href="docs/images/screenshots/team-members.png"><img src="docs/images/screenshots/team-members.png" alt="팀 멤버 화면" width="460" /></a> | [원본 보기](docs/images/screenshots/team-members.png) |
+| 팀 리포트(관리자) | <a href="docs/images/screenshots/team-reports.png"><img src="docs/images/screenshots/team-reports.png" alt="팀 리포트 화면" width="460" /></a> | [원본 보기](docs/images/screenshots/team-reports.png) |
+| 활동 로그(관리자) | <a href="docs/images/screenshots/activity-log.png"><img src="docs/images/screenshots/activity-log.png" alt="활동 로그 화면" width="460" /></a> | [원본 보기](docs/images/screenshots/activity-log.png) |
+| 완료 프로젝트(관리자) | <a href="docs/images/screenshots/completed-projects.png"><img src="docs/images/screenshots/completed-projects.png" alt="완료 프로젝트 화면" width="460" /></a> | [원본 보기](docs/images/screenshots/completed-projects.png) |
+| 설정(관리자) | <a href="docs/images/screenshots/settings.png"><img src="docs/images/screenshots/settings.png" alt="설정 화면" width="460" /></a> | [원본 보기](docs/images/screenshots/settings.png) |
 | 검색 | <a href="docs/images/screenshots/search.png"><img src="docs/images/screenshots/search.png" alt="검색 화면" width="460" /></a> | [원본 보기](docs/images/screenshots/search.png) |
 | 로그인 | <a href="docs/images/screenshots/login.png"><img src="docs/images/screenshots/login.png" alt="로그인 화면" width="460" /></a> | [원본 보기](docs/images/screenshots/login.png) |
 | 회원가입 | <a href="docs/images/screenshots/signup.png"><img src="docs/images/screenshots/signup.png" alt="회원가입 화면" width="460" /></a> | [원본 보기](docs/images/screenshots/signup.png) |
