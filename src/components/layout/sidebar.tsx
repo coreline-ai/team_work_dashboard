@@ -45,8 +45,8 @@ export function Sidebar({ className }: { className?: string }) {
         <aside className={cn("flex flex-col bg-slate-50 border-r border-slate-200 h-full", className)}>
             <div className="flex h-16 items-center px-6 border-b border-slate-200">
                 <Link href="/" className="flex items-center gap-2 font-bold text-xl text-slate-800">
-                    <div className="h-6 w-6 rounded bg-blue-600 flex items-center justify-center text-white text-xs">R</div>
-                    RichProp
+                    <div className="h-6 w-6 rounded bg-yellow-400 flex items-center justify-center text-slate-900 text-xs">C</div>
+                    Coreline
                 </Link>
             </div>
             <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">

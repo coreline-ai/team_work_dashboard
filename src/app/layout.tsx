@@ -7,7 +7,7 @@ import { AppShell } from "@/components/layout/app-shell";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Rich Properties",
+  title: "Coreline",
   description: "Dashboard and Task Management",
 };
 
