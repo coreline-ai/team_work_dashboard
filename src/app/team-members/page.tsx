@@ -273,12 +273,12 @@ export default function TeamMembersPage() {
           {publicLoading ? <p className="text-sm text-slate-500">멤버 정보를 불러오는 중...</p> : null}
           {!publicLoading ? (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
+              <table className="w-full min-w-[760px] text-sm text-left">
                 <thead>
                   <tr className="border-b border-slate-100">
-                    <th className="py-3 px-4 text-xs uppercase text-slate-500">이름</th>
-                    <th className="py-3 px-4 text-xs uppercase text-slate-500">역할</th>
-                    <th className="py-3 px-4 text-xs uppercase text-slate-500">진행중</th>
+                    <th className="py-3 px-4 text-xs uppercase text-slate-500 whitespace-nowrap">이름</th>
+                    <th className="py-3 px-4 text-xs uppercase text-slate-500 whitespace-nowrap">역할</th>
+                    <th className="py-3 px-4 text-xs uppercase text-slate-500 whitespace-nowrap">진행중</th>
                     <th className="py-3 px-4 text-xs uppercase text-slate-500">프로젝트</th>
                     <th className="py-3 px-4 text-xs uppercase text-slate-500">대표 항목</th>
                   </tr>
@@ -286,9 +286,9 @@ export default function TeamMembersPage() {
                 <tbody>
                   {filteredPublicMembers.map((member) => (
                     <tr key={member.id} className="border-b border-slate-50">
-                      <td className="py-3 px-4 font-medium text-slate-800">{member.name}</td>
-                      <td className="py-3 px-4 text-slate-600">{getRoleLabel(member.role)}</td>
-                      <td className="py-3 px-4 text-blue-700 font-medium">{member.inProgressCount}</td>
+                      <td className="py-3 px-4 font-medium text-slate-800 whitespace-nowrap">{member.name}</td>
+                      <td className="py-3 px-4 text-slate-600 whitespace-nowrap">{getRoleLabel(member.role)}</td>
+                      <td className="py-3 px-4 text-blue-700 font-medium whitespace-nowrap">{member.inProgressCount}</td>
                       <td className="py-3 px-4">
                         <div className="flex flex-wrap gap-1">
                           {(member.projectBuckets ?? []).slice(0, 4).map((bucket) => (

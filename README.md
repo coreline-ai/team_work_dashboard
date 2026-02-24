@@ -238,7 +238,7 @@ npm run dev
 | 역할 | 이메일 |
 |---|---|
 | ADMIN(팀장) | `user1@richprop.local` |
-| MEMBER(팀원) | `user2@richprop.local` ~ `user7@richprop.local` |
+| MEMBER(팀원) | `user2@richprop.local` ~ `user6@richprop.local` |
 
 ## 12. 품질 검증 명령어
 
